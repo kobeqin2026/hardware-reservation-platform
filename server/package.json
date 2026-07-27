@@ -1,0 +1,15 @@
+{
+  "name": "hardware-reservation-platform",
+  "version": "1.0.0",
+  "description": "硬件资源预定使用平台 - Hardware Resource Reservation Platform",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js"
+  },
+  "dependencies": {
+    "better-sqlite3": "^11.0.0",
+    "cors": "^2.8.5",
+    "express": "^4.18.2"
+  }
+}
