@@ -1,0 +1,3799 @@
+// JIRA Test Case Management — Frontend Logic
+// Step 1: Select project → Step 2: Select Task/Test Plan → Step 3: KPI + Detail
+
+// ============ Chart.js Pie Label Plugin ============
+var pieLabelPlugin = {
+    id: 'pieLabel',
+    afterDatasetsDraw: function(chart) {
+        if (chart.config.type !== 'pie' && chart.config.type !== 'doughnut') return;
+        var ctx = chart.ctx;
+        var dataset = chart.data.datasets[0];
+        var labels = chart.data.labels;
+        var meta = chart.getDatasetMeta(0);
+        var total = dataset.data.reduce(function(a, b) { return a + b; }, 0);
+        if (total === 0) return;
+        var centerX = meta.data[0].x;
+        var centerY = meta.data[0].y;
+        var outerRadius = meta.data[0].outerRadius;
+        var innerRadius = meta.data[0].innerRadius || 0;
+        ctx.save();
+        meta.data.forEach(function(arc, i) {
+            var value = dataset.data[i];
+            var pct = Math.round((value / total) * 100);
+            if (pct < 1) return;
+            var label = labels[i] || '';
+            var color = dataset.backgroundColor[i];
+            var textColor = isLightColor(color) ? '#333' : '#fff';
+            var angle = arc.startAngle + (arc.endAngle - arc.startAngle) / 2;
+            var ringWidth = outerRadius - innerRadius;
+            var labelR = innerRadius + ringWidth * 0.5;
+            var labelX = centerX + Math.cos(angle) * labelR;
+            var labelY = centerY + Math.sin(angle) * labelR;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            var nameSize = Math.max(9, Math.min(12, ringWidth * 0.22));
+            ctx.font = 'bold ' + nameSize + 'px sans-serif';
+            ctx.fillStyle = textColor;
+            ctx.fillText(label, labelX, labelY - nameSize * 0.55);
+            var pctSize = Math.max(9, Math.min(11, ringWidth * 0.20));
+            ctx.font = 'bold ' + pctSize + 'px sans-serif';
+            ctx.fillText(pct + '%', labelX, labelY + pctSize * 0.6);
+        });
+        ctx.restore();
+    }
+};
+
+function isLightColor(color) {
+    var r = 0, g = 0, b = 0;
+    if (color && color.startsWith('#')) {
+        var hex = color.slice(1);
+        if (hex.length === 3) hex = hex[0]+hex[0]+hex[1]+hex[1]+hex[2]+hex[2];
+        r = parseInt(hex.substring(0, 2), 16);
+        g = parseInt(hex.substring(2, 4), 16);
+        b = parseInt(hex.substring(4, 6), 16);
+    }
+    var luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+    return luminance > 0.6;
+}
+
+if (typeof Chart !== 'undefined') { Chart.register(pieLabelPlugin); }
+
+// ============ Chart.js Bar Label Plugin ============
+var barLabelPlugin = {
+    id: 'barLabel',
+    afterDatasetsDraw: function(chart) {
+        if (chart.config.type !== 'bar') return;
+        var ctx = chart.ctx;
+        ctx.save();
+        chart.data.datasets.forEach(function(dataset, di) {
+            var meta = chart.getDatasetMeta(di);
+            meta.data.forEach(function(bar, i) {
+                var value = dataset.data[i];
+                if (!value) return;
+                var barHeight = bar.y - bar.base;
+                if (barHeight < 8) return;
+                ctx.fillStyle = di === 0 ? '#fff' : '#555';
+                ctx.font = 'bold 11px sans-serif';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(value, bar.x, bar.base + barHeight / 2);
+            });
+        });
+        ctx.restore();
+    }
+};
+if (typeof Chart !== 'undefined') { Chart.register(barLabelPlugin); }
+
+var authToken = localStorage.getItem('testcaseAuthToken') || '';
+var currentUserRole = localStorage.getItem('testcaseUserRole') || '';
+var currentUserName = localStorage.getItem('testcaseUserName') || '';
+var parsedData = [];
+var headers = [];
+var uploadResults = [];
+var currentPlans = [];
+var selectedPlanKey = '';
+
+// ============ Auth ============
+
+function checkAuth() {
+    if (!authToken) {
+        document.getElementById('login-overlay').style.display = 'flex';
+        return;
+    }
+    fetch('/api/auth/verify', {
+        credentials: 'same-origin',
+        headers: { 'Authorization': 'Bearer ' + authToken }
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (data.success && data.user) {
+            document.getElementById('login-overlay').style.display = 'none';
+            currentUserRole = data.user.role || '';
+            currentUserName = data.user.name || data.user.username || '';
+            localStorage.setItem('testcaseUserRole', currentUserRole);
+            localStorage.setItem('testcaseUserName', currentUserName);
+            updateHeaderUI();
+            loadProjects();
+        } else {
+            authToken = '';
+            localStorage.removeItem('testcaseAuthToken');
+            localStorage.removeItem('testcaseUserRole');
+            localStorage.removeItem('testcaseUserName');
+            document.getElementById('login-overlay').style.display = 'flex';
+            document.getElementById('btn-logout').style.display = 'none';
+            document.getElementById('btn-profile').style.display = 'none';
+        }
+    })
+    .catch(function() {
+        document.getElementById('login-overlay').style.display = 'flex';
+    });
+}
+
+function doLogin() {
+    var user = document.getElementById('login-user').value.trim();
+    var pass = document.getElementById('login-pass').value;
+    if (!user || !pass) { showLoginError('请输入用户名和密码'); return; }
+    var loginBtn = document.querySelector('.login-box button');
+    if (loginBtn) loginBtn.textContent = '登录中...';
+
+    fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify({ username: user, password: pass })
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (loginBtn) loginBtn.textContent = '登录';
+        if (data.success && data.token) {
+            authToken = data.token;
+            currentUserRole = data.user ? data.user.role : '';
+            currentUserName = data.user ? (data.user.name || data.user.username) : '';
+            localStorage.setItem('testcaseAuthToken', authToken);
+            localStorage.setItem('testcaseUserRole', currentUserRole);
+            localStorage.setItem('testcaseUserName', currentUserName);
+            document.getElementById('login-overlay').style.display = 'none';
+            updateHeaderUI();
+            loadProjects();
+        } else {
+            showLoginError(data.message || data.error || '登录失败');
+        }
+    })
+    .catch(function(e) {
+        if (loginBtn) loginBtn.textContent = '登录';
+        showLoginError('网络错误: ' + e.message);
+    });
+}
+
+function showLoginError(msg) {
+    var el = document.getElementById('login-error');
+    el.textContent = msg;
+    el.style.display = 'block';
+}
+
+function doLogout() {
+    authToken = '';
+    currentUserRole = '';
+    currentUserName = '';
+    localStorage.removeItem('testcaseAuthToken');
+    localStorage.removeItem('testcaseUserRole');
+    localStorage.removeItem('testcaseUserName');
+    document.getElementById('login-overlay').style.display = 'flex';
+    document.getElementById('btn-logout').style.display = 'none';
+    document.getElementById('header-user-info').style.display = 'none';
+    document.getElementById('btn-admin-users').style.display = 'none';
+    document.getElementById('btn-profile').style.display = 'none';
+}
+
+document.getElementById('login-pass').addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') doLogin();
+});
+
+// ============ Tab Switching ============
+
+function switchTab(tab) {
+    document.querySelectorAll('.tab-btn').forEach(function(btn, i) {
+        btn.classList.toggle('active', (tab === 'browse' && i === 0) || (tab === 'upload' && i === 1));
+    });
+    document.querySelectorAll('.tab-content').forEach(function(el) { el.classList.remove('active'); });
+    document.getElementById('tab-' + tab).classList.add('active');
+}
+
+// ============ Header UI & User Management ============
+
+function updateHeaderUI() {
+    var infoEl = document.getElementById('header-user-info');
+    var nameEl = document.getElementById('header-username');
+    var roleEl = document.getElementById('header-role-badge');
+    var logoutEl = document.getElementById('btn-logout');
+    var adminBtn = document.getElementById('btn-admin-users');
+    var profileBtn = document.getElementById('btn-profile');
+
+    if (currentUserName) {
+        nameEl.textContent = currentUserName;
+        infoEl.style.display = 'inline';
+    }
+    if (currentUserRole === 'admin') {
+        roleEl.textContent = '管理员';
+        roleEl.style.background = '#fef3e0';
+        roleEl.style.color = '#e65100';
+        adminBtn.style.display = 'inline-flex';
+    } else {
+        roleEl.textContent = '用户';
+        roleEl.style.background = '#e8f5e9';
+        roleEl.style.color = '#27ae60';
+        adminBtn.style.display = 'none';
+    }
+    profileBtn.style.display = 'inline-flex';
+    logoutEl.style.display = 'inline-block';
+}
+
+function showUserModal() {
+    document.getElementById('user-modal').style.display = 'flex';
+    loadUserList();
+}
+
+function closeUserModal() {
+    document.getElementById('user-modal').style.display = 'none';
+}
+
+function loadUserList() {
+    fetch('/api/auth/users', {
+        credentials: 'same-origin',
+        headers: { 'Authorization': 'Bearer ' + authToken }
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        var container = document.getElementById('user-list');
+        if (!data.success || !data.data || data.data.length === 0) {
+            container.innerHTML = '<div style="text-align:center; color:#999; padding:16px;">暂无用户</div>';
+            return;
+        }
+        var html = '<table style="width:100%; border-collapse:collapse; font-size:13px;">';
+        html += '<tr style="background:#f8f9fa;"><th style="padding:8px; text-align:left; border-bottom:1px solid #eee;">用户名</th><th style="padding:8px; text-align:left; border-bottom:1px solid #eee;">姓名</th><th style="padding:8px; text-align:left; border-bottom:1px solid #eee;">角色</th><th style="padding:8px; text-align:center; border-bottom:1px solid #eee;">操作</th></tr>';
+        data.data.forEach(function(u) {
+            var roleBadge = u.role === 'admin' ?
+                '<span style="background:#fef3e0; color:#e65100; padding:2px 8px; border-radius:8px; font-size:11px; font-weight:600;">管理员</span>' :
+                '<span style="background:#e8f5e9; color:#27ae60; padding:2px 8px; border-radius:8px; font-size:11px; font-weight:600;">用户</span>';
+            html += '<tr>';
+            html += '<td style="padding:8px; border-bottom:1px solid #f0f0f0;">' + escapeHtml(u.username) + '</td>';
+            html += '<td style="padding:8px; border-bottom:1px solid #f0f0f0;">' + escapeHtml(u.name) + '</td>';
+            html += '<td style="padding:8px; border-bottom:1px solid #f0f0f0;">' + roleBadge + '</td>';
+            html += '<td style="padding:8px; border-bottom:1px solid #f0f0f0; text-align:center;">';
+            if (u.username !== 'admin') {
+                html += '<button class="btn btn-sm" style="background:#e74c3c; color:#fff; padding:3px 8px; font-size:11px;" onclick="deleteUser(\'' + u.id + '\', \'' + escapeHtml(u.username) + '\')">删除</button>';
+            }
+            html += '</td></tr>';
+        });
+        html += '</table>';
+        container.innerHTML = html;
+    });
+}
+
+function addUser() {
+    var username = document.getElementById('new-username').value.trim();
+    var name = document.getElementById('new-name').value.trim();
+    var password = document.getElementById('new-password').value;
+    var role = document.getElementById('new-role').value;
+
+    if (!username || !name || !password) {
+        alert('请填写用户名、姓名和密码');
+        return;
+    }
+
+    fetch('/api/auth/users', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ' + authToken
+        },
+        credentials: 'same-origin',
+        body: JSON.stringify({ username: username, name: name, password: password, role: role })
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (data.success) {
+            alert('✅ 用户添加成功: ' + username);
+            document.getElementById('new-username').value = '';
+            document.getElementById('new-name').value = '';
+            document.getElementById('new-password').value = '';
+            loadUserList();
+        } else {
+            alert('❌ ' + (data.message || data.error || '添加失败'));
+        }
+    });
+}
+
+function deleteUser(id, username) {
+    if (!confirm('确定要删除用户 ' + username + ' 吗？')) return;
+    fetch('/api/auth/users/' + id, {
+        method: 'DELETE',
+        headers: { 'Authorization': 'Bearer ' + authToken },
+        credentials: 'same-origin'
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (data.success) {
+            alert('✅ 用户已删除');
+            loadUserList();
+        } else {
+            alert('❌ ' + (data.message || data.error || '删除失败'));
+        }
+    });
+}
+
+// ============ JIRA Profile Settings ============
+
+function showProfileModal() {
+    document.getElementById('profile-modal').style.display = 'flex';
+    loadProfile();
+}
+
+function closeProfileModal() {
+    document.getElementById('profile-modal').style.display = 'none';
+}
+
+function loadProfile() {
+    fetch('/api/auth/profile', {
+        credentials: 'same-origin',
+        headers: { 'Authorization': 'Bearer ' + authToken }
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (data.success && data.data) {
+            document.getElementById('profile-jira-name').value = data.data.jiraName || '';
+            document.getElementById('profile-pat-status').textContent = data.data.jiraPat ? '✅ PAT 已设置' : '⚠️ 未设置 PAT';
+            document.getElementById('profile-pat-status').style.color = data.data.jiraPat ? '#27ae60' : '#e65100';
+        }
+    });
+}
+
+function saveProfile() {
+    var pat = document.getElementById('profile-jira-pat').value.trim();
+    var jiraName = document.getElementById('profile-jira-name').value.trim();
+
+    if (!jiraName) {
+        alert('请填写 JIRA 用户名');
+        return;
+    }
+
+    var body = { jiraName: jiraName };
+    if (pat) {
+        body.jiraPat = pat;
+    }
+
+    fetch('/api/auth/profile', {
+        method: 'PUT',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ' + authToken
+        },
+        credentials: 'same-origin',
+        body: JSON.stringify(body)
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (data.success) {
+            alert('✅ JIRA 设置已保存');
+            document.getElementById('profile-jira-pat').value = '';
+            loadProfile();
+        } else {
+            alert('❌ ' + (data.message || data.error || '保存失败'));
+        }
+    });
+}
+
+// ============ Projects ============
+
+function loadProjects() {
+    fetch('/api/testcase/projects', {
+        credentials: 'same-origin',
+        headers: authToken ? { 'Authorization': 'Bearer ' + authToken } : {}
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (data.success && data.data) {
+            ['browse-project', 'tc-project'].forEach(function(id) {
+                var sel = document.getElementById(id);
+                sel.innerHTML = '<option value="">-- 选择项目 --</option>';
+                data.data.forEach(function(p) {
+                    var opt = document.createElement('option');
+                    opt.value = p.key;
+                    opt.textContent = p.key + ' — ' + p.name;
+                    sel.appendChild(opt);
+                });
+            });
+        }
+    })
+    .catch(function(e) {
+        console.error('Load projects failed:', e);
+    });
+}
+
+// ============ Step 1-2: Load Parents (Task + Test Plan) ============
+
+var allParents = [];
+
+function onProjectChange() {
+    var project = document.getElementById('browse-project').value;
+    document.getElementById('parent-section').style.display = 'none';
+    document.getElementById('detail-section').style.display = 'none';
+    document.getElementById('parent-status-bar').style.display = 'none';
+    if (project) loadParents();
+}
+
+function backToProject() {
+    document.getElementById('project-section').style.display = '';
+    document.getElementById('parent-section').style.display = 'none';
+    document.getElementById('detail-section').style.display = 'none';
+    document.getElementById('parent-status-bar').style.display = 'none';
+    document.getElementById('breadcrumb-bar').style.display = 'none';
+    selectedParent = null;
+}
+
+function backToParentList() {
+    document.getElementById('detail-section').style.display = 'none';
+    document.getElementById('parent-section').style.display = 'block';
+    // Hide regenerate description button
+    document.getElementById('regen-desc-section').style.display = 'none';
+    // Update breadcrumb: show project only
+    var bcParent = document.getElementById('bc-parent');
+    var bcStatus = document.getElementById('bc-status');
+    var bcBackParent = document.getElementById('bc-back-parent');
+    bcParent.style.display = 'none';
+    bcStatus.style.display = 'none';
+    bcBackParent.style.display = 'none';
+    selectedParent = null;
+}
+
+function showBreadcrumb(project, parentKey, parentSummary, parentStatus) {
+    var bar = document.getElementById('breadcrumb-bar');
+    var bcProject = document.getElementById('bc-project');
+    var bcParent = document.getElementById('bc-parent');
+    var bcStatus = document.getElementById('bc-status');
+    var bcBackParent = document.getElementById('bc-back-parent');
+    var bcBackProject = document.getElementById('bc-back-project');
+
+    bar.style.display = '';
+    document.getElementById('project-section').style.display = 'none';
+    bcBackProject.style.display = '';
+
+    if (parentKey) {
+        var jiraBase = 'https://jira01.birentech.com/browse/';
+        bcParent.innerHTML = (parentKey ? '<a href="' + jiraBase + parentKey + '" target="_blank" style="color:#1a73e8; text-decoration:none; border-bottom:1px dashed #1a73e8;">' + parentKey + '</a> ' : '') + (parentSummary || '').replace(/</g, '&lt;');
+        bcParent.style.display = '';
+        bcBackParent.style.display = '';
+
+        // Show status badge
+        var st = (parentStatus || '').toLowerCase();
+        bcStatus.style.display = '';
+        if (st === 'closed' || st === 'validated') {
+            bcStatus.textContent = '已完成';
+            bcStatus.style.background = '#d1fae5';
+            bcStatus.style.color = '#059669';
+        } else {
+            bcStatus.textContent = '进行中';
+            bcStatus.style.background = '#dbeafe';
+            bcStatus.style.color = '#2563eb';
+        }
+    } else {
+        bcParent.style.display = 'none';
+        bcStatus.style.display = 'none';
+        bcBackParent.style.display = 'none';
+    }
+}
+
+function loadParents() {
+    var project = document.getElementById('browse-project').value;
+    if (!project) return;
+
+    document.getElementById('parent-section').style.display = 'block';
+    document.getElementById('parent-grid').innerHTML = '<div class="loading">加载中...</div>';
+
+    // Show breadcrumb with project
+    showBreadcrumb(project);
+
+    // Fetch project components for filter
+    projectComponents = [];
+    fetch('/api/testcase/components?project=' + encodeURIComponent(project), {
+        credentials: 'same-origin',
+        headers: authToken ? { 'Authorization': 'Bearer ' + authToken } : {}
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (data.success && data.data && data.data.components) {
+            projectComponents = data.data.components;
+        }
+    })
+    .catch(function() {});
+
+    // Fetch both Task and Test Plan
+    fetch('/api/testcase/search?project=' + encodeURIComponent(project) + '&issuetype=Task,Test+Plan&maxResults=100', {
+        credentials: 'same-origin',
+        headers: authToken ? { 'Authorization': 'Bearer ' + authToken } : {}
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (data.success && data.data) {
+            allParents = data.data.issues || [];
+            document.getElementById('parent-count').textContent = allParents.length + ' 个';
+            renderParentGrid(allParents);
+        }
+    })
+    .catch(function(e) {
+        document.getElementById('parent-grid').innerHTML = '<div class="empty-state"><p>加载失败: ' + e.message + '</p></div>';
+    });
+}
+
+function renderParentGrid(parents) {
+    var grid = document.getElementById('parent-grid');
+    if (parents.length === 0) {
+        grid.innerHTML = '<div class="empty-state"><div class="icon">📭</div><p>没有找到 Task 或 Test Plan</p></div>';
+        return;
+    }
+
+    var html = '';
+    parents.forEach(function(p) {
+        var typeClass = p.issuetype === 'Test Plan' ? 'pc-type-testplan' : 'pc-type-task';
+        html += '<div class="parent-card" data-key="' + p.key + '" onclick="selectParent(\'' + p.key + '\')">';
+        html += '<div class="pc-header">';
+        html += '<span class="pc-key"><a href="' + p.url + '" target="_blank" onclick="event.stopPropagation()">' + p.key + '</a></span>';
+        html += '<span class="pc-type ' + typeClass + '">' + p.issuetype + '</span>';
+        html += getStatusBadge(p.status);
+        html += '</div>';
+        html += '<div class="pc-title">' + escapeHtml(p.summary) + '</div>';
+        html += '<div class="pc-meta">' + (p.assignee || '未分配') + ' · ' + formatDate(p.created) + '</div>';
+        html += '</div>';
+    });
+    grid.innerHTML = html;
+}
+
+function filterParents() {
+    var q = document.getElementById('parent-search').value.toLowerCase();
+    if (!q) { renderParentGrid(allParents); return; }
+    var filtered = allParents.filter(function(p) {
+        return p.key.toLowerCase().indexOf(q) >= 0 || p.summary.toLowerCase().indexOf(q) >= 0;
+    });
+    renderParentGrid(filtered);
+}
+
+// ============ Step 3: Select Parent → Load KPI + Detail ============
+
+var selectedParent = null;
+var subtasks = [];
+var linkedPlans = [];
+
+function selectParent(key) {
+    document.querySelectorAll('.parent-card').forEach(function(c) {
+        c.classList.toggle('selected', c.getAttribute('data-key') === key);
+    });
+
+    selectedParent = allParents.find(function(p) { return p.key === key; });
+    if (!selectedParent) return;
+
+    // Hide Step 2, show Step 3
+    document.getElementById('parent-section').style.display = 'none';
+    document.getElementById('detail-section').style.display = 'block';
+
+    // Show regenerate description button
+    document.getElementById('regen-desc-section').style.display = 'block';
+    document.getElementById('regen-desc-status').textContent = '';
+
+    // Update breadcrumb with parent info
+    var project = document.getElementById('browse-project').value;
+    showBreadcrumb(project, selectedParent.key, selectedParent.summary, selectedParent.status);
+    document.getElementById('detail-thead').innerHTML = '<tr><th>加载中...</th></tr>';
+    document.getElementById('detail-tbody').innerHTML = '';
+    document.getElementById('kpi-total').textContent = '...';
+    document.getElementById('dist-row').innerHTML = '';
+    linkedPlans = [];
+
+    // Use linked-tasks endpoint (supports 3-level recursion)
+    fetch('/api/testcase/testplan/linked-tasks/' + key, {
+        credentials: 'same-origin',
+        headers: authToken ? { 'Authorization': 'Bearer ' + authToken } : {}
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (!data.success || !data.data) throw new Error(data.error || '加载失败');
+
+        subtasks = data.data.tasks || [];
+        linkedPlans = data.data.linkedPlans || [];
+
+        renderLinkedPlans(linkedPlans);
+        renderKPI(subtasks);
+        renderDistributions(subtasks);
+        initPendingPieCharts();
+        renderDetailTable(subtasks);
+    })
+    .catch(function(e) {
+        document.getElementById('detail-section').innerHTML = '<div class="empty-state"><p>加载失败: ' + e.message + '</p></div>';
+    });
+}
+
+function renderLinkedPlans(plans) {
+    // Remove old linked plans section if exists
+    var oldSection = document.getElementById('linked-plans-section');
+    if (oldSection) oldSection.remove();
+    if (plans.length === 0) return;
+    // Count sub-tasks per plan (including tasks from sub-plans)
+    var planCounts = {};
+    subtasks.forEach(function(t) {
+        var p = t.parent || '';
+        if (p) planCounts[p] = (planCounts[p] || 0) + 1;
+    });
+    // Also count tasks from L2/L3 linked plans into their L1 parent
+    // Build parent-child map from linkedPlans
+    var planParentMap = {};
+    plans.forEach(function(lp) {
+        if (lp.level === 2 && lp.parentKey) {
+            // L2 plan's cases should count towards L1 parent
+            var l1Count = planCounts[lp.key] || 0;
+            planCounts[lp.parentKey] = (planCounts[lp.parentKey] || 0) + l1Count;
+        }
+    });
+    // Sort plans: L1 first, then L2 grouped under their L1 parent
+    var l1Plans = plans.filter(function(p) { return p.level === 1; });
+    var l2Plans = plans.filter(function(p) { return p.level === 2; });
+    var sortedPlans = [];
+    l1Plans.forEach(function(lp) {
+        sortedPlans.push(lp);
+        // Add L2 children right after their L1 parent
+        l2Plans.forEach(function(l2) {
+            if (l2.parentKey === lp.key) sortedPlans.push(l2);
+        });
+    });
+    // Add any remaining L2 plans (orphaned or different parent)
+    l2Plans.forEach(function(l2) {
+        if (sortedPlans.indexOf(l2) === -1) sortedPlans.push(l2);
+    });
+    var html = '<div class="card" style="margin-bottom:16px; padding:14px; background:#f8f9fa;">';
+    html += '<div style="font-size:13px; color:#555; font-weight:600; margin-bottom:8px;">📎 关联的 Sub-Test Plans</div>';
+    sortedPlans.forEach(function(lp) {
+        var typeClass = lp.issuetype === 'Test Plan' ? 'pc-type-testplan' : 'pc-type-task';
+        var indent = lp.level === 2 ? 'margin-left:24px;' : '';
+        var prefix = lp.level === 2 ? '└─ ' : '';
+        var count = planCounts[lp.key] || 0;
+        html += '<div style="display:flex; align-items:center; gap:8px; padding:6px 0; border-bottom:1px solid #eee; ' + indent + '">';
+        html += '<span style="font-size:12px; color:#999;">' + prefix + '</span>';
+        html += '<a href="https://jira01.birentech.com/browse/' + lp.key + '" target="_blank" style="font-weight:600; color:#3498db; text-decoration:none;">' + lp.key + '</a>';
+        html += '<span class="pc-type ' + typeClass + '" style="font-size:10px;">' + lp.issuetype + '</span>';
+        html += '<span style="font-size:13px; color:#333; flex:1;">' + escapeHtml(lp.summary) + '</span>';
+        html += '<span style="font-size:12px; color:#27ae60; font-weight:600;">' + count + ' cases</span>';
+        html += '</div>';
+    });
+    html += '</div>';
+    var wrapper = document.createElement('div'); wrapper.id = 'linked-plans-section'; wrapper.innerHTML = html.substring(html.indexOf('<div'));
+    document.getElementById('detail-section').insertAdjacentElement('afterbegin', wrapper);
+}
+
+// ============ KPI Rendering ============
+
+function renderKPI(issues) {
+    var total = issues.length;
+    var statusCount = {};
+    var priorityCount = {};
+    issues.forEach(function(i) {
+        var s = normalizeStatus(i.status);
+        statusCount[s] = (statusCount[s] || 0) + 1;
+        var p = i.priority || 'Unknown';
+        priorityCount[p] = (priorityCount[p] || 0) + 1;
+    });
+
+    var done = (statusCount['done'] || 0) + (statusCount['closed'] || 0);
+    var validated = statusCount['validated'] || 0;
+    var inProgress = statusCount['inprogress'] || 0;
+    var todo = (statusCount['todo'] || 0) + (statusCount['open'] || 0);
+    var blocked = statusCount['blocked'] || 0;
+    var waived = statusCount['waived'] || 0;
+    var completionRate = total > 0 ? Math.round((done + validated) / total * 100) : 0;
+    var highPriority = priorityCount['Highest'] || 0;
+    // Highest priority completion rate
+    var highPriorityDone = 0;
+    issues.forEach(function(i) {
+        var p = (i.priority || '').toLowerCase();
+        if (p === 'highest') {
+            var ns = normalizeStatus(i.status);
+            if (ns === 'done' || ns === 'closed' || ns === 'validated') highPriorityDone++;
+        }
+    });
+    var highPriorityRate = highPriority > 0 ? Math.round(highPriorityDone / highPriority * 100) : 0;
+
+    animateNumber('kpi-total', total);
+    animateNumber('kpi-done', completionRate, '%');
+    animateNumber('kpi-progress', highPriorityRate, '%');
+    animateNumber('kpi-todo', done + validated);
+    animateNumber('kpi-high', highPriority);
+    animateNumber('kpi-blocked', blocked);
+
+    // Check if all subtasks are validated → show completion banner
+    var banner = document.getElementById('completion-banner');
+    var bannerText = document.getElementById('completion-text');
+    if (total > 0 && validated === total) {
+        var parentName = selectedParent ? (selectedParent.summary || selectedParent.key) : '';
+        var parentKey = selectedParent ? selectedParent.key : '';
+        bannerText.textContent = parentKey + ' ' + parentName + ' 执行完成 ✅';
+        banner.style.display = 'flex';
+        // Update breadcrumb status to "已完成"
+        var bcStatus = document.getElementById('bc-status');
+        if (bcStatus) {
+            bcStatus.textContent = '已完成';
+            bcStatus.style.background = '#d1fae5';
+            bcStatus.style.color = '#059669';
+        }
+    } else {
+        banner.style.display = 'none';
+    }
+}
+
+function animateNumber(elementId, target, suffix) {
+    suffix = suffix || '';
+    var el = document.getElementById(elementId);
+    if (!el) return;
+    var current = 0;
+    var step = Math.max(1, Math.floor(target / 20));
+    var interval = setInterval(function() {
+        current += step;
+        if (current >= target) {
+            current = target;
+            clearInterval(interval);
+        }
+        el.textContent = current + suffix;
+    }, 30);
+}
+
+function normalizeStatus(status) {
+    if (!status) return 'other';
+    var s = status.toLowerCase();
+    if (s === 'to do' || s === 'open' || s === 'new' || s === 'opened') return 'todo';
+    if (s === 'in progress' || s === 'in review' || s === 'reopened' || s === '进行中') return 'inprogress';
+    if (s === 'done' || s === 'resolved') return 'done';
+    if (s === 'validated') return 'validated';
+    if (s === 'closed' || s === 'rejected') return 'closed';
+    if (s === 'blocked') return 'blocked';
+    if (s === 'waived') return 'waived';
+    return 'other';
+}
+
+// ============ Distribution Charts ============
+
+function renderDistributions(issues) {
+    var statusCount = {};
+    var priorityCount = {};
+    var statusColorMap = {};
+
+    issues.forEach(function(i) {
+        var s = i.status || 'Unknown';
+        statusCount[s] = (statusCount[s] || 0) + 1;
+        // Map each actual status to its normalized color
+        var ns = normalizeStatus(i.status);
+        var colorLookup = { 'todo': '#95a5a6', 'inprogress': '#3498db', 'done': '#1abc9c', 'validated': '#27ae60', 'closed': '#6c757d', 'blocked': '#e74c3c', 'waived': '#f39c12', 'other': '#9b59b6' };
+        statusColorMap[s] = colorLookup[ns] || '#9b59b6';
+
+        var p = i.priority || 'Unknown';
+        priorityCount[p] = (priorityCount[p] || 0) + 1;
+    });
+
+    var html = '';
+
+    // 1. Status Pie Chart — use actual JIRA status names with colors
+    html += '<div class="chart-card">';
+    html += '<h3>📊 状态分布</h3>';
+    html += renderPieChart(statusCount, statusColorMap);
+    html += '</div>';
+
+    // 2. Components Distribution — vertical bar chart via Chart.js
+    html += '<div class="chart-card">';
+    html += '<h3>🧩 组件分布</h3>';
+    var compData = {};
+    issues.forEach(function(i) {
+        var comps = i.components || [];
+        var keys = comps.length > 0 ? comps : ['未分配'];
+        keys.forEach(function(c) {
+            if (!compData[c]) compData[c] = { total: 0, done: 0 };
+            compData[c].total++;
+            var ns = normalizeStatus(i.status);
+            if (ns === 'done' || ns === 'closed' || ns === 'validated') compData[c].done++;
+        });
+    });
+    var compSorted = Object.keys(compData).sort(function(a, b) { return compData[b].total - compData[a].total; });
+    var compLabels = compSorted;
+    var compTotalData = compSorted.map(function(c) { return compData[c].total; });
+    var compDoneData = compSorted.map(function(c) { return compData[c].done; });
+    var compCanvasId = 'comp-chart-' + (_pieChartCounter++);
+    _pendingCompCharts = [{ canvasId: compCanvasId, labels: compLabels, totalData: compTotalData, doneData: compDoneData }];
+    html += '<div style="position:relative; height:260px;"><canvas id="' + compCanvasId + '"></canvas></div>';
+    html += '</div>';
+
+    document.getElementById('dist-row').innerHTML = html;
+
+    // Daily execution trend: track how many test cases were set to Validated each day
+    // Only show dates within the execution period (Actual Start Date to Actual End Date)
+    var execStart = selectedParent ? (selectedParent.actualStartDate || '').substring(0, 10) : '';
+    var execEnd = selectedParent ? (selectedParent.actualEndDate || '').substring(0, 10) : '';
+    
+    var validatedDaily = {};
+    var totalValidated = 0;
+    issues.forEach(function(i) {
+        if (i.status === 'Validated') {
+            var d = '';
+            if (i.updated) {
+                d = i.updated.substring(0, 10);
+            } else if (i.created) {
+                d = i.created.substring(0, 10);
+            }
+            // Only count if within execution period
+            if (d && (!execStart || d >= execStart) && (!execEnd || d <= execEnd)) {
+                validatedDaily[d] = (validatedDaily[d] || 0) + 1;
+                totalValidated++;
+            }
+        }
+    });
+    
+    // Generate all dates in execution period for complete x-axis
+    var allDates = [];
+    if (execStart && execEnd) {
+        var current = new Date(execStart);
+        var end = new Date(execEnd);
+        while (current <= end) {
+            allDates.push(current.toISOString().substring(0, 10));
+            current.setDate(current.getDate() + 1);
+        }
+    } else {
+        allDates = Object.keys(validatedDaily).sort();
+    }
+    
+    // Fill in dates with 0 if no data
+    allDates.forEach(function(d) {
+        if (!validatedDaily[d]) validatedDaily[d] = 0;
+    });
+    var sortedDates = allDates.sort();
+    
+    // Calculate progress
+    var totalIssues = issues.length;
+    var progressPercent = totalIssues > 0 ? Math.round((totalValidated / totalIssues) * 100) : 0;
+    
+    // If no data, show empty state
+    if (sortedDates.length === 0) {
+        document.getElementById('owner-row').innerHTML = '<div class="chart-card chart-wide"><h3>📈 每日执行趋势</h3><p style="color:#999;text-align:center;">暂无已验证的测试用例</p></div>';
+    } else {
+        // Aggregate by date (count of test cases validated that day)
+        var trendCanvasId = 'trend-chart-' + (_pieChartCounter++);
+        var trendHtml = '<div class="chart-card chart-wide">';
+        trendHtml += '<h3>📈 每日执行趋势</h3>';
+        trendHtml += '<div style="margin-bottom:10px;font-size:13px;color:#666;">已验证: <span style="color:#27ae60;font-weight:bold;">' + totalValidated + '</span> / ' + totalIssues + ' (' + progressPercent + '%)</div>';
+        trendHtml += '<div style="position:relative; height:200px;"><canvas id="' + trendCanvasId + '"></canvas></div>';
+        trendHtml += '</div>';
+        document.getElementById('owner-row').innerHTML = trendHtml;
+        // Defer chart creation
+        _pendingCompCharts.push({
+            canvasId: trendCanvasId,
+            isTrend: true,
+            labels: sortedDates,
+            data: sortedDates.map(function(d) { return validatedDaily[d]; })
+        });
+    }
+}
+
+function inferCategory(summary) {
+    var s = summary.toLowerCase();
+    if (/性能|throughput|latency|bandwidth|吞吐|延迟/.test(s)) return '性能测试';
+    if (/压力|stress|soak|长时间|稳定性/.test(s)) return '压力测试';
+    if (/信号|signal|eye|jitter|眼图|抖动|serdes/.test(s)) return '信号测试';
+    if (/功耗|power|voltage|电流|电压|热|thermal/.test(s)) return '功耗测试';
+    if (/接口|register|mmio|config|配置空间|寄存器|link|lane/.test(s)) return '接口测试';
+    if (/功能|feature|enable|支持|disable|reset|link/.test(s)) return '功能测试';
+    return '其他';
+}
+
+var _pieChartCounter = 0;
+var _pendingPieCharts = [];
+var _pendingCompCharts = [];
+
+function renderPieChart(countMap, colorMap, displayNames) {
+    displayNames = displayNames || {};
+    var total = 0;
+    var labels = [];
+    var data = [];
+    var colors = [];
+
+    Object.keys(countMap).forEach(function(k) {
+        if (countMap[k] > 0) {
+            labels.push(displayNames[k] || k);
+            data.push(countMap[k]);
+            colors.push(colorMap[k] || '#95a5a6');
+            total += countMap[k];
+        }
+    });
+
+    if (total === 0) return '<div style="text-align:center; color:#999; padding:20px;">无数据</div>';
+
+    var canvasId = 'pie-chart-' + (_pieChartCounter++);
+    _pendingPieCharts.push({ canvasId: canvasId, labels: labels, data: data, colors: colors });
+
+    return '<div style="position:relative; height:260px;"><canvas id="' + canvasId + '"></canvas></div>';
+}
+
+function initPendingPieCharts() {
+    _pendingPieCharts.forEach(function(item) {
+        var canvas = document.getElementById(item.canvasId);
+        if (!canvas) return;
+        var ctx = canvas.getContext('2d');
+        new Chart(ctx, {
+            type: 'doughnut',
+            data: {
+                labels: item.labels,
+                datasets: [{
+                    data: item.data,
+                    backgroundColor: item.colors,
+                    borderWidth: 2,
+                    borderColor: '#fff'
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    pieLabel: {},
+                    legend: { position: 'bottom', labels: { padding: 10, font: { size: 11 } } }
+                }
+            }
+        });
+    });
+    _pendingPieCharts = [];
+
+    // Init component bar charts + trend charts
+    _pendingCompCharts.forEach(function(item) {
+        var canvas = document.getElementById(item.canvasId);
+        if (!canvas) return;
+        var ctx = canvas.getContext('2d');
+        if (item.isTrend) {
+            // Daily execution trend line chart
+            new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: item.labels.map(function(d) { return d.substring(5); }), // MM-DD
+                    datasets: [{
+                        label: '执行数量',
+                        data: item.data,
+                        borderColor: '#3498db',
+                        backgroundColor: 'rgba(52,152,219,0.15)',
+                        fill: true,
+                        tension: 0.3,
+                        pointRadius: 4,
+                        pointBackgroundColor: '#3498db'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        x: { grid: { display: false } },
+                        y: { beginAtZero: true, ticks: { stepSize: 1 } }
+                    },
+                    plugins: {
+                        legend: { display: false }
+                    }
+                }
+            });
+        } else {
+            // Component stacked bar chart with datalabels
+            var doneData = item.doneData;
+            var totalData = item.totalData;
+            var barLabelPlugin = {
+                id: 'barLabels',
+                afterDatasetsDraw: function(chart) {
+                    var ctx = chart.ctx;
+                    ctx.save();
+                    ctx.font = 'bold 11px sans-serif';
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'bottom';
+                    // Use dataset 1 (top of stacked bar) for Y position
+                    var meta = chart.getDatasetMeta(1);
+                    meta.data.forEach(function(bar, i) {
+                        var done = doneData[i];
+                        var total = totalData[i];
+                        var label = done + '/' + total;
+                        ctx.fillStyle = total === 0 ? '#999' : '#333';
+                        ctx.fillText(label, bar.x, bar.y - 6);
+                    });
+                    ctx.restore();
+                }
+            };
+            new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: item.labels,
+                    datasets: [
+                        { label: '已完成', data: item.doneData, backgroundColor: '#27ae60', borderRadius: 4 },
+                        { label: '未完成', data: item.totalData.map(function(t, i) { return t - item.doneData[i]; }), backgroundColor: '#ddd', borderRadius: 4 }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    layout: { padding: { top: 24 } },
+                    scales: {
+                        x: { stacked: true, grid: { display: false } },
+                        y: { stacked: true, beginAtZero: true, ticks: { stepSize: 1 } }
+                    },
+                    plugins: {
+                        legend: { position: 'bottom', labels: { padding: 10, font: { size: 11 } } },
+                        barLabels: {}
+                    }
+                },
+                plugins: [barLabelPlugin]
+            });
+        }
+    });
+    _pendingCompCharts = [];
+}
+
+
+// ============ Detail Table ============
+// ============ Detail Table with Filter / Sort / Batch ============
+
+var pendingChanges = {};      // { key: transitionId }
+var transitionCache = {};     // { key: [{ id, name }] }
+var projectComponents = [];   // all components for current project
+var allDetailIssues = [];     // store for re-render
+var allSubtasksGlobal = [];   // all subtasks for current parent
+var filterState = { status: '', owner: '', search: '', components: '' };
+var sortState = { column: '', direction: 'asc' };
+var selectedKeys = new Set();
+
+function renderDetailTable(issues) {
+    allSubtasksGlobal = issues;
+    allDetailIssues = issues;
+    pendingChanges = {};
+    transitionCache = {};
+    selectedKeys.clear();
+    updateChangeUI();
+    updateBatchBar();
+
+    document.getElementById('detail-count').textContent = issues.length + ' 条';
+
+    // Show filter card and populate dropdowns
+    if (issues.length > 0) {
+        document.getElementById('filter-card').style.display = '';
+        populateFilterDropdowns(issues);
+    } else {
+        document.getElementById('filter-card').style.display = 'none';
+    }
+
+    // Reset filter state
+    filterState = { status: '', owner: '', search: '', components: '' };
+    sortState = { column: '', direction: 'asc' };
+    document.getElementById('filter-status').value = '';
+    document.getElementById('filter-owner').value = '';
+    document.getElementById('filter-search').value = '';
+    document.getElementById('filter-components').value = '';
+
+    applyFilters();
+}
+
+function populateFilterDropdowns(issues) {
+    var statusCount = {};
+    var ownerCount = {};
+    var compCount = {};
+    issues.forEach(function(i) {
+        var s = i.status || 'Unknown';
+        statusCount[s] = (statusCount[s] || 0) + 1;
+        var owner = i.assignee || '未分配';
+        ownerCount[owner] = (ownerCount[owner] || 0) + 1;
+        var comps = i.components || [];
+        if (comps.length > 0) {
+            comps.forEach(function(c) { compCount[c] = (compCount[c] || 0) + 1; });
+        } else {
+            compCount['未分配'] = (compCount['未分配'] || 0) + 1;
+        }
+    });
+
+    var statusSel = document.getElementById('filter-status');
+    var savedStatus = statusSel.value;
+    statusSel.innerHTML = '<option value="">全部状态 (' + issues.length + ')</option>';
+    Object.keys(statusCount).sort().forEach(function(s) {
+        var opt = document.createElement('option');
+        opt.value = s;
+        opt.textContent = s + ' (' + statusCount[s] + ')';
+        statusSel.appendChild(opt);
+    });
+    if (savedStatus) statusSel.value = savedStatus;
+
+    var ownerSel = document.getElementById('filter-owner');
+    var savedOwner = ownerSel.value;
+    ownerSel.innerHTML = '<option value="">全部负责人</option>';
+    Object.keys(ownerCount).sort().forEach(function(o) {
+        var opt = document.createElement('option');
+        opt.value = o;
+        opt.textContent = o + ' (' + ownerCount[o] + ')';
+        ownerSel.appendChild(opt);
+    });
+    if (savedOwner) ownerSel.value = savedOwner;
+
+    var compSel = document.getElementById('filter-components');
+    var savedComp = compSel.value;
+    compSel.innerHTML = '<option value="">全部组件</option>';
+    // Merge project components with actual sub-task components
+    var allComps = {};
+    projectComponents.forEach(function(c) { allComps[c] = allComps[c] || 0; });
+    Object.keys(compCount).forEach(function(c) { allComps[c] = compCount[c]; });
+    Object.keys(allComps).sort().forEach(function(c) {
+        var opt = document.createElement('option');
+        opt.value = c;
+        var count = allComps[c];
+        opt.textContent = count > 0 ? c + ' (' + count + ')' : c;
+        compSel.appendChild(opt);
+    });
+    if (savedComp) compSel.value = savedComp;
+}
+
+function applyFilters() {
+    filterState.status = document.getElementById('filter-status').value;
+    filterState.owner = document.getElementById('filter-owner').value;
+    filterState.search = document.getElementById('filter-search').value.toLowerCase();
+    filterState.components = document.getElementById('filter-components').value;
+
+    var filtered = allSubtasksGlobal.filter(function(i) {
+        if (filterState.status && i.status !== filterState.status) return false;
+        var owner = i.assignee || '未分配';
+        if (filterState.owner && owner !== filterState.owner) return false;
+        if (filterState.components) {
+            var comps = i.components || [];
+            if (filterState.components === '\u672a\u5206\u914d') {
+                if (comps.length > 0) return false;
+            } else {
+                if (comps.indexOf(filterState.components) < 0) return false;
+            }
+        }
+        if (filterState.search) {
+            var key = (i.key || '').toLowerCase();
+            var summary = (i.summary || '').toLowerCase();
+            if (key.indexOf(filterState.search) < 0 && summary.indexOf(filterState.search) < 0) return false;
+        }
+        return true;
+    });
+
+    // Apply sort
+    if (sortState.column) {
+        filtered = sortIssues(filtered, sortState.column, sortState.direction);
+    }
+
+    // Show filter count
+    var countEl = document.getElementById('filter-count');
+    var hasFilter = filterState.status || filterState.owner || filterState.search || filterState.components;
+    if (hasFilter) {
+        countEl.style.display = '';
+        countEl.textContent = '筛选结果: ' + filtered.length + ' / ' + allSubtasksGlobal.length + ' 条';
+    } else {
+        countEl.style.display = 'none';
+    }
+
+    renderDetailTableBody(filtered);
+}
+
+function clearFilters() {
+    filterState = { status: '', owner: '', search: '', components: '' };
+    document.getElementById('filter-status').value = '';
+    document.getElementById('filter-owner').value = '';
+    document.getElementById('filter-search').value = '';
+    document.getElementById('filter-components').value = '';
+    applyFilters();
+}
+
+function sortIssues(issues, column, direction) {
+    var priorityOrder = { 'highest': 0, 'high': 1, 'medium': 2, 'low': 3, 'lowest': 4 };
+    return issues.slice().sort(function(a, b) {
+        var va, vb;
+        switch (column) {
+            case 'key':
+                va = a.key || ''; vb = b.key || '';
+                return direction === 'asc' ? va.localeCompare(vb) : vb.localeCompare(va);
+            case 'summary':
+                va = a.summary || ''; vb = b.summary || '';
+                return direction === 'asc' ? va.localeCompare(vb) : vb.localeCompare(va);
+            case 'status':
+                va = a.status || ''; vb = b.status || '';
+                return direction === 'asc' ? va.localeCompare(vb) : vb.localeCompare(va);
+            case 'assignee':
+                va = a.assignee || '\uffff'; vb = b.assignee || '\uffff';
+                return direction === 'asc' ? va.localeCompare(vb) : vb.localeCompare(va);
+            case 'components':
+                va = (a.components || []).join(', '); vb = (b.components || []).join(', ');
+                return direction === 'asc' ? va.localeCompare(vb) : vb.localeCompare(va);
+            case 'priority':
+                va = priorityOrder[(a.priority || '').toLowerCase()] || 5;
+                vb = priorityOrder[(b.priority || '').toLowerCase()] || 5;
+                return direction === 'asc' ? va - vb : vb - va;
+            case 'created':
+                va = a.created || ''; vb = b.created || '';
+                return direction === 'asc' ? va.localeCompare(vb) : vb.localeCompare(va);
+            default:
+                return 0;
+        }
+    });
+}
+
+function onSort(column) {
+    if (sortState.column === column) {
+        sortState.direction = sortState.direction === 'asc' ? 'desc' : 'asc';
+    } else {
+        sortState.column = column;
+        sortState.direction = 'asc';
+    }
+    applyFilters();
+}
+
+function renderDetailTableBody(issues) {
+    var thead = document.getElementById('detail-thead');
+    var columns = [
+        { key: 'key', label: 'Key', width: '120px' },
+        { key: 'summary', label: '标题', width: '' },
+        { key: 'status', label: '状态 (点击修改)', width: '140px' },
+        { key: 'assignee', label: '负责人', width: '100px' },
+        { key: 'components', label: '组件', width: '100px' },
+        { key: 'priority', label: '优先级', width: '80px' },
+        { key: 'created', label: '创建时间', width: '140px' },
+        { key: 'action', label: '操作', width: '60px' }
+    ];
+
+    var theadHtml = '<tr><th class="chk-col"><input type="checkbox" id="select-all-cb" onchange="toggleSelectAll(this.checked)" /></th>';
+    columns.forEach(function(col) {
+        var sortClass = 'sortable';
+        var sortIcon = '\u2195';
+        if (sortState.column === col.key) {
+            sortClass += sortState.direction === 'asc' ? ' sort-asc' : ' sort-desc';
+            sortIcon = sortState.direction === 'asc' ? '\u2191' : '\u2193';
+        }
+        theadHtml += '<th class="' + sortClass + '" style="width:' + col.width + '" onclick="onSort(\'' + col.key + '\')">' + col.label + ' <span class="sort-icon">' + sortIcon + '</span></th>';
+    });
+    theadHtml += '</tr>';
+    thead.innerHTML = theadHtml;
+
+    var tbody = document.getElementById('detail-tbody');
+    tbody.innerHTML = '';
+
+    if (issues.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="8" style="text-align:center; padding:20px; color:#999;">暂无 Sub-task</td></tr>';
+        return;
+    }
+
+    var fragment = document.createDocumentFragment();
+    issues.forEach(function(issue) {
+        var tr = document.createElement('tr');
+        tr.setAttribute('data-key', issue.key);
+        if (selectedKeys.has(issue.key)) tr.classList.add('selected-row');
+
+        // Checkbox
+        var tdChk = document.createElement('td');
+        tdChk.className = 'chk-col';
+        var chk = document.createElement('input');
+        chk.type = 'checkbox';
+        chk.checked = selectedKeys.has(issue.key);
+        chk.setAttribute('data-key', issue.key);
+        chk.addEventListener('change', function(e) { toggleSelect(e.target.getAttribute('data-key'), e.target.checked); });
+        tdChk.appendChild(chk);
+        tr.appendChild(tdChk);
+
+        // Key
+        var tdKey = document.createElement('td');
+        tdKey.innerHTML = '<a href="' + issue.url + '" target="_blank">' + issue.key + '</a>';
+        tr.appendChild(tdKey);
+
+        // Summary
+        var tdSummary = document.createElement('td');
+        tdSummary.textContent = issue.summary || '';
+        tdSummary.title = issue.summary || '';
+        tr.appendChild(tdSummary);
+
+        // Status — clickable to edit
+        var tdStatus = document.createElement('td');
+        tdStatus.className = 'editable-status';
+        tdStatus.setAttribute('data-key', issue.key);
+        tdStatus.setAttribute('data-original', issue.status || '');
+        tdStatus.innerHTML = getStatusBadge(issue.status);
+        tdStatus.style.cursor = 'pointer';
+        tdStatus.title = '点击修改状态';
+        tdStatus.addEventListener('click', onStatusClick);
+        tr.appendChild(tdStatus);
+
+        // Assignee
+        var tdAssignee = document.createElement('td');
+        tdAssignee.textContent = issue.assignee || '-';
+        tr.appendChild(tdAssignee);
+
+        // Components
+        var tdComp = document.createElement('td');
+        var comps = issue.components || [];
+        if (comps.length > 0) {
+            tdComp.textContent = comps.join(', ');
+            tdComp.title = comps.join(', ');
+        } else {
+            tdComp.textContent = '-';
+            tdComp.style.color = '#ccc';
+        }
+        tr.appendChild(tdComp);
+
+        // Priority
+        var tdPriority = document.createElement('td');
+        tdPriority.innerHTML = getPriorityHtml(issue.priority);
+        tr.appendChild(tdPriority);
+
+        // Created
+        var tdCreated = document.createElement('td');
+        tdCreated.textContent = formatDate(issue.created);
+        tr.appendChild(tdCreated);
+
+        // Action - Delete button
+        var tdAction = document.createElement('td');
+        tdAction.style.textAlign = 'center';
+        var delBtn = document.createElement('button');
+        delBtn.className = 'btn btn-sm btn-delete-issue';
+        delBtn.style.cssText = 'background:none; color:#e74c3c; border:1px solid #e74c3c; padding:2px 6px; font-size:11px; cursor:pointer; border-radius:4px;';
+        delBtn.textContent = '🗑️';
+        delBtn.title = '删除 ' + issue.key;
+        delBtn.onclick = (function(k) { return function() { deleteIssue(k); }; })(issue.key);
+        tdAction.appendChild(delBtn);
+        tr.appendChild(tdAction);
+
+        fragment.appendChild(tr);
+    });
+    tbody.appendChild(fragment);
+
+    // Update select-all checkbox state
+    updateSelectAllState();
+}
+
+// ============ Batch Select ============
+
+function toggleSelectAll(checked) {
+    var filtered = getFilteredIssues();
+    if (checked) {
+        filtered.forEach(function(i) { selectedKeys.add(i.key); });
+    } else {
+        selectedKeys.clear();
+    }
+    updateCheckboxVisuals();
+    updateBatchBar();
+}
+
+function toggleSelect(key, checked) {
+    if (checked) {
+        selectedKeys.add(key);
+    } else {
+        selectedKeys.delete(key);
+    }
+    var tr = document.querySelector('tr[data-key="' + key + '"]');
+    if (tr) tr.classList.toggle('selected-row', checked);
+    updateSelectAllState();
+    updateBatchBar();
+}
+
+function clearSelection() {
+    selectedKeys.clear();
+    updateCheckboxVisuals();
+    updateBatchBar();
+}
+
+function updateCheckboxVisuals() {
+    document.querySelectorAll('#detail-tbody input[type="checkbox"]').forEach(function(cb) {
+        var key = cb.getAttribute('data-key');
+        cb.checked = selectedKeys.has(key);
+        var tr = cb.closest('tr');
+        if (tr) tr.classList.toggle('selected-row', selectedKeys.has(key));
+    });
+    updateSelectAllState();
+}
+
+function updateSelectAllState() {
+    var selectAllCb = document.getElementById('select-all-cb');
+    if (!selectAllCb) return;
+    var filtered = getFilteredIssues();
+    if (filtered.length === 0) {
+        selectAllCb.checked = false;
+        selectAllCb.indeterminate = false;
+        return;
+    }
+    var checkedCount = filtered.filter(function(i) { return selectedKeys.has(i.key); }).length;
+    selectAllCb.checked = checkedCount === filtered.length;
+    selectAllCb.indeterminate = checkedCount > 0 && checkedCount < filtered.length;
+}
+
+function getFilteredIssues() {
+    var filtered = allSubtasksGlobal.filter(function(i) {
+        if (filterState.status && i.status !== filterState.status) return false;
+        var owner = i.assignee || '未分配';
+        if (filterState.owner && owner !== filterState.owner) return false;
+        if (filterState.components) {
+            var comps = i.components || [];
+            if (filterState.components === '\u672a\u5206\u914d') {
+                if (comps.length > 0) return false;
+            } else {
+                if (comps.indexOf(filterState.components) < 0) return false;
+            }
+        }
+        if (filterState.search) {
+            var key = (i.key || '').toLowerCase();
+            var summary = (i.summary || '').toLowerCase();
+            if (key.indexOf(filterState.search) < 0 && summary.indexOf(filterState.search) < 0) return false;
+        }
+        return true;
+    });
+    if (sortState.column) {
+        filtered = sortIssues(filtered, sortState.column, sortState.direction);
+    }
+    return filtered;
+}
+
+function updateBatchBar() {
+    var bar = document.getElementById('batch-bar');
+    var countEl = document.getElementById('batch-count');
+    var statusSel = document.getElementById('batch-status-select');
+    var count = selectedKeys.size;
+
+    if (count === 0) {
+        bar.classList.remove('visible');
+        return;
+    }
+
+    bar.classList.add('visible');
+    countEl.textContent = '已选择 ' + count + ' 项';
+
+    // Collect common transitions from cached data
+    var commonTransitions = null;
+    selectedKeys.forEach(function(key) {
+        var transitions = transitionCache[key];
+        if (!transitions) return;
+        if (!commonTransitions) {
+            commonTransitions = transitions.map(function(t) { return { id: t.id, name: t.name }; });
+        } else {
+            commonTransitions = commonTransitions.filter(function(ct) {
+                return transitions.some(function(t) { return t.id === ct.id && t.name === ct.name; });
+            });
+        }
+    });
+
+    statusSel.innerHTML = '<option value="">-- 选择目标状态 --</option>';
+    if (commonTransitions && commonTransitions.length > 0) {
+        commonTransitions.forEach(function(t) {
+            var opt = document.createElement('option');
+            opt.value = t.id;
+            opt.textContent = t.name;
+            statusSel.appendChild(opt);
+        });
+    } else if (count > 0) {
+        // Fetch transitions for uncached selected items
+        statusSel.innerHTML = '<option value="">加载中...</option>';
+        fetchTransitionsForSelected().then(function() {
+            updateBatchBar();
+        });
+    }
+}
+
+function fetchTransitionsForSelected() {
+    var keys = Array.from(selectedKeys).filter(function(k) { return !transitionCache[k]; });
+    if (keys.length === 0) return Promise.resolve();
+
+    var fetches = keys.map(function(key) {
+        return fetch('/api/testcase/transitions/' + key, {
+            credentials: 'same-origin',
+            headers: authToken ? { 'Authorization': 'Bearer ' + authToken } : {}
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.success && data.data && data.data.transitions) {
+                transitionCache[key] = data.data.transitions;
+            }
+        })
+        .catch(function() {});
+    });
+
+    return Promise.all(fetches);
+}
+
+function batchApplyStatus() {
+    var statusSel = document.getElementById('batch-status-select');
+    var transitionId = statusSel.value;
+    if (!transitionId) {
+        alert('请选择目标状态');
+        return;
+    }
+
+    // Find transition name for display
+    var tName = '';
+    statusSel.querySelectorAll('option').forEach(function(opt) {
+        if (opt.value === transitionId) tName = opt.textContent;
+    });
+
+    var count = 0;
+    selectedKeys.forEach(function(key) {
+        var transitions = transitionCache[key];
+        if (!transitions) return;
+        var match = transitions.find(function(t) { return t.id === transitionId; });
+        if (match) {
+            pendingChanges[key] = transitionId;
+            count++;
+            // Update the status cell visually
+            var td = document.querySelector('td.editable-status[data-key="' + key + '"]');
+            if (td) {
+                var origStatus = td.getAttribute('data-original');
+                td.innerHTML = getStatusBadge(origStatus) + ' \u2192 <span style="color:#27ae60; font-weight:600;">' + tName + '</span>';
+            }
+        }
+    });
+
+    updateChangeUI();
+    clearSelection();
+}
+
+// ============ Status Editing (single cell) ============
+
+function onStatusClick(e) {
+    var td = e.currentTarget;
+    var key = td.getAttribute('data-key');
+    var currentStatus = td.getAttribute('data-original');
+
+    // If already showing a dropdown, ignore
+    if (td.querySelector('select')) return;
+
+    // Check cache
+    if (transitionCache[key]) {
+        showStatusDropdown(td, key, transitionCache[key], currentStatus);
+        return;
+    }
+
+    // Fetch available transitions
+    td.innerHTML = '<span style="font-size:12px; color:#999;">加载中...</span>';
+    fetch('/api/testcase/transitions/' + key, {
+        credentials: 'same-origin',
+        headers: authToken ? { 'Authorization': 'Bearer ' + authToken } : {}
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (data.success && data.data && data.data.transitions) {
+            transitionCache[key] = data.data.transitions;
+            showStatusDropdown(td, key, data.data.transitions, currentStatus);
+        } else {
+            td.innerHTML = getStatusBadge(currentStatus);
+        }
+    })
+    .catch(function() {
+        td.innerHTML = getStatusBadge(currentStatus);
+    });
+}
+
+function showStatusDropdown(td, key, transitions, currentStatus) {
+    if (!transitions || transitions.length === 0) {
+        td.innerHTML = getStatusBadge(currentStatus) + ' <span style="font-size:11px; color:#999;">(无可用转换)</span>';
+        return;
+    }
+
+    var select = document.createElement('select');
+    select.style.cssText = 'width:100%; padding:4px 6px; border:2px solid #3498db; border-radius:4px; font-size:12px; background:#fff;';
+
+    // Current status as disabled option
+    var optCurrent = document.createElement('option');
+    optCurrent.value = '';
+    optCurrent.textContent = currentStatus + ' (当前)';
+    optCurrent.disabled = true;
+    optCurrent.selected = true;
+    select.appendChild(optCurrent);
+
+    transitions.forEach(function(t) {
+        var opt = document.createElement('option');
+        opt.value = t.id;
+        opt.textContent = t.name;
+        select.appendChild(opt);
+    });
+
+    select.addEventListener('change', function() {
+        var newId = select.value;
+        if (newId) {
+            pendingChanges[key] = newId;
+            // Find the transition name for display
+            var tName = '';
+            transitions.forEach(function(t) { if (t.id === newId) tName = t.name; });
+            td.innerHTML = getStatusBadge(currentStatus) + ' \u2192 <span style="color:#27ae60; font-weight:600;">' + tName + '</span>';
+            td.style.cursor = 'pointer';
+        } else {
+            delete pendingChanges[key];
+            td.innerHTML = getStatusBadge(currentStatus);
+            td.style.cursor = 'pointer';
+        }
+        updateChangeUI();
+    });
+
+    // Click outside to close
+    function onBlur() {
+        setTimeout(function() {
+            if (!td.querySelector('select')) return;
+            if (pendingChanges[key]) {
+                var tName = '';
+                transitions.forEach(function(t) { if (t.id === pendingChanges[key]) tName = t.name; });
+                td.innerHTML = getStatusBadge(currentStatus) + ' \u2192 <span style="color:#27ae60; font-weight:600;">' + tName + '</span>';
+            } else {
+                td.innerHTML = getStatusBadge(currentStatus);
+            }
+            td.style.cursor = 'pointer';
+            td.removeEventListener('blur', onBlur);
+        }, 150);
+    }
+
+    td.innerHTML = '';
+    td.appendChild(select);
+    td.style.cursor = 'default';
+    select.focus();
+    select.addEventListener('blur', onBlur);
+}
+
+function updateChangeUI() {
+    var count = Object.keys(pendingChanges).length;
+    var countEl = document.getElementById('change-count');
+    var btnEl = document.getElementById('btn-save-status');
+    if (count > 0) {
+        countEl.textContent = count + ' 项待保存';
+        countEl.style.display = 'inline';
+        btnEl.style.display = 'inline-flex';
+    } else {
+        countEl.style.display = 'none';
+        btnEl.style.display = 'none';
+    }
+}
+
+function saveStatusToJira() {
+    var keys = Object.keys(pendingChanges);
+    if (keys.length === 0) return;
+
+    var btn = document.getElementById('btn-save-status');
+    var countEl = document.getElementById('change-count');
+    btn.disabled = true;
+    btn.textContent = '\u23f3 保存中...';
+    countEl.textContent = '0 / ' + keys.length;
+
+    var transitions = keys.map(function(key) {
+        return { key: key, transitionId: pendingChanges[key] };
+    });
+
+    fetch('/api/testcase/transition-batch', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            ...(authToken ? { 'Authorization': 'Bearer ' + authToken } : {})
+        },
+        credentials: 'same-origin',
+        body: JSON.stringify({ transitions: transitions })
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        btn.disabled = false;
+        if (data.success && data.data) {
+            var ok = data.data.ok || 0;
+            var fail = data.data.failed || 0;
+            if (fail > 0) {
+                var errMsg = (data.data.errors || []).map(function(e) { return e.key + ': ' + e.error; }).join('\n');
+                alert('\u2705 成功 ' + ok + ' 条\n\u274c 失败 ' + fail + ' 条\n\n' + errMsg);
+            } else {
+                alert('\u2705 成功 ' + ok + ' 条');
+            }
+            pendingChanges = {};
+            btn.textContent = '\uD83D\uDCBE 保存到JIRA';
+            // Reload data then check auto-close
+            if (selectedParent) {
+                selectParent(selectedParent.key);
+                setTimeout(function() { checkAndAutoCloseParent(); }, 1500);
+            }
+        } else {
+            alert('\u274c 保存失败: ' + (data.error || '未知错误'));
+            btn.textContent = '\uD83D\uDCBE 保存到JIRA';
+        }
+    })
+    .catch(function(e) {
+        btn.disabled = false;
+        btn.textContent = '\U0001f4be 保存到JIRA';
+        alert('\u274c 网络错误: ' + e.message);
+    });
+}
+
+// ============ Delete Test Cases ============
+
+function deleteIssue(key) {
+    if (!confirm('确定要删除 ' + key + ' 吗？此操作不可撤销。')) return;
+    
+    var btn = document.querySelector('tr[data-key="' + key + '"] .btn-delete-issue');
+    if (btn) { btn.disabled = true; btn.textContent = '删除中...'; }
+    
+    fetch('/api/testcase/delete/' + key, {
+        method: 'DELETE',
+        credentials: 'same-origin',
+        headers: authToken ? { 'Authorization': 'Bearer ' + authToken } : {}
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (data.success) {
+            // Remove from subtasks array
+            subtasks = subtasks.filter(function(t) { return t.key !== key; });
+            allSubtasksGlobal = allSubtasksGlobal.filter(function(t) { return t.key !== key; });
+            // Re-render
+            renderDetailTable(subtasks);
+            renderKPI(subtasks);
+            renderDistributions(subtasks);
+            initPendingPieCharts();
+        } else {
+            alert('删除失败: ' + (data.error || '未知错误'));
+            if (btn) { btn.disabled = false; btn.textContent = '🗑️'; }
+        }
+    })
+    .catch(function(e) {
+        alert('删除失败: ' + e.message);
+        if (btn) { btn.disabled = false; btn.textContent = '🗑️'; }
+    });
+}
+
+function batchDeleteIssues() {
+    if (selectedKeys.size === 0) { alert('请先选择要删除的项'); return; }
+    var count = selectedKeys.size;
+    if (!confirm('确定要删除选中的 ' + count + ' 个 Test Case 吗？此操作不可撤销。')) return;
+    
+    var keys = Array.from(selectedKeys);
+    var btn = document.getElementById('batch-delete-btn');
+    if (btn) { btn.disabled = true; btn.textContent = '⏳ 删除中...'; }
+    
+    fetch('/api/testcase/batch-delete', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: {
+            'Content-Type': 'application/json',
+            ...(authToken ? { 'Authorization': 'Bearer ' + authToken } : {})
+        },
+        body: JSON.stringify({ keys: keys })
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (data.success && data.data) {
+            var deleted = data.data.deleted || 0;
+            var failed = data.data.failed || 0;
+            if (failed > 0) {
+                var errMsg = (data.data.errors || []).map(function(e) { return e.key + ': ' + e.error; }).join('\n');
+                alert('✅ 删除 ' + deleted + ' 条\n❌ 失败 ' + failed + ' 条\n\n' + errMsg);
+            } else {
+                alert('✅ 成功删除 ' + deleted + ' 条 Test Case');
+            }
+            // Remove deleted keys from subtasks
+            var deletedKeys = new Set(keys.filter(function(k) {
+                return !(data.data.errors || []).some(function(e) { return e.key === k; });
+            }));
+            subtasks = subtasks.filter(function(t) { return !deletedKeys.has(t.key); });
+            allSubtasksGlobal = allSubtasksGlobal.filter(function(t) { return !deletedKeys.has(t.key); });
+            selectedKeys.clear();
+            renderDetailTable(subtasks);
+            renderKPI(subtasks);
+            renderDistributions(subtasks);
+            initPendingPieCharts();
+        } else {
+            alert('批量删除失败: ' + (data.error || '未知错误'));
+        }
+        if (btn) { btn.disabled = false; btn.textContent = '🗑️ 批量删除'; }
+    })
+    .catch(function(e) {
+        alert('批量删除失败: ' + e.message);
+        if (btn) { btn.disabled = false; btn.textContent = '🗑️ 批量删除'; }
+    });
+}
+
+// ============ Utility Functions ============
+
+function escapeHtml(text) {
+    var div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+function getStatusBadge(status) {
+    if (!status) return '<span class="badge-status badge-default">未知</span>';
+    var ns = normalizeStatus(status);
+    var cls = 'badge-default';
+    if (ns === 'todo') cls = 'badge-todo';
+    else if (ns === 'inprogress') cls = 'badge-inprogress';
+    else if (ns === 'done') cls = 'badge-done';
+    else if (ns === 'closed') cls = 'badge-closed';
+    return '<span class="badge-status ' + cls + '">' + status + '</span>';
+}
+
+function getPriorityHtml(priority) {
+    if (!priority) return '-';
+    var p = priority.toLowerCase();
+    var cls = '';
+    if (p === 'highest') cls = 'priority-highest';
+    else if (p === 'high') cls = 'priority-high';
+    else if (p === 'medium') cls = 'priority-medium';
+    else if (p === 'low' || p === 'lowest') cls = 'priority-low';
+    return '<span class="' + cls + '">' + priority + '</span>';
+}
+
+function formatDate(dateStr) {
+    if (!dateStr) return '-';
+    try {
+        var d = new Date(dateStr);
+        return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2) + ' ' + ('0' + d.getHours()).slice(-2) + ':' + ('0' + d.getMinutes()).slice(-2);
+    } catch (e) { return dateStr; }
+}
+
+// ============ Tab 2: Upload — 3-Step Flow ============
+
+var uploadSelectedPlanKey = '';
+var uploadSelectedPlanSummary = '';
+var uploadSelectedPlanStatus = '';
+var uploadAllParents = [];
+
+function onUploadProjectChange() {
+    var project = document.getElementById('tc-project').value;
+    if (!project) return;
+
+    // Show parent section, hide content
+    document.getElementById('upload-parent-section').style.display = 'block';
+    document.getElementById('upload-content-section').style.display = 'none';
+    document.getElementById('upload-existing-section').style.display = 'none';
+    document.getElementById('upload-breadcrumb').style.display = 'none';
+    document.getElementById('upload-project-section').style.display = 'none';
+
+    // Update breadcrumb project name
+    var opt = document.getElementById('tc-project').options[document.getElementById('tc-project').selectedIndex];
+    document.getElementById('ubc-project').textContent = opt.text.split(' — ')[0];
+
+    loadUploadParents();
+}
+
+function loadUploadParents() {
+    var project = document.getElementById('tc-project').value;
+    if (!project) return;
+
+    var grid = document.getElementById('upload-parent-grid');
+    grid.innerHTML = '<div class="loading">加载中...</div>';
+
+    fetch('/api/testcase/search?project=' + encodeURIComponent(project) + '&issuetype=Task,Test+Plan&maxResults=100', {
+        credentials: 'same-origin',
+        headers: authToken ? { 'Authorization': 'Bearer ' + authToken } : {}
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (!data.success || !data.data || !data.data.issues) {
+            grid.innerHTML = '<div style="color:#999; padding:20px; text-align:center;">加载失败</div>';
+            return;
+        }
+        var issues = data.data.issues;
+        uploadAllParents = issues;
+
+        if (issues.length === 0) {
+            grid.innerHTML = '<div style="color:#999; padding:20px; text-align:center;">没有找到 Task 或 Test Plan，请新建一个</div>';
+            document.getElementById('upload-parent-count').textContent = '(0)';
+            return;
+        }
+
+        document.getElementById('upload-parent-count').textContent = '(' + issues.length + ')';
+        renderUploadParents(issues);
+    })
+    .catch(function(e) {
+        grid.innerHTML = '<div style="color:#e74c3c; padding:20px; text-align:center;">加载失败: ' + e.message + '</div>';
+    });
+}
+
+function renderUploadParents(issues) {
+    var grid = document.getElementById('upload-parent-grid');
+    grid.innerHTML = '';
+    issues.forEach(function(issue) {
+        var card = document.createElement('div');
+        card.className = 'parent-card';
+        card.setAttribute('data-key', issue.key);
+        card.onclick = function() { selectUploadParent(issue.key, issue.summary, issue.status); };
+
+        var typeName = issue.issuetype === 'Test Plan' ? 'Test Plan' : 'Task';
+        var typeClass = typeName === 'Test Plan' ? 'pc-type-testplan' : 'pc-type-task';
+
+        card.innerHTML = '<div class="pc-header">' +
+            '<span class="pc-key">' + issue.key + '</span>' +
+            '<span class="pc-type ' + typeClass + '">' + typeName + '</span>' +
+            '</div>' +
+            '<div class="pc-title">' + (issue.summary || '').replace(/</g, '&lt;') + '</div>' +
+            '<div class="pc-meta">' + (issue.status || '') + '</div>';
+
+        grid.appendChild(card);
+    });
+}
+
+function filterUploadParents() {
+    var query = (document.getElementById('upload-parent-search').value || '').toLowerCase();
+    var filtered = uploadAllParents.filter(function(p) {
+        return !query || (p.key || '').toLowerCase().indexOf(query) !== -1 ||
+               (p.summary || '').toLowerCase().indexOf(query) !== -1;
+    });
+    renderUploadParents(filtered);
+}
+
+function selectUploadParent(key, summary, status) {
+    uploadSelectedPlanKey = key;
+    uploadSelectedPlanSummary = summary;
+    uploadSelectedPlanStatus = status || '';
+
+    // Hide step 1 & 2
+    document.getElementById('upload-project-section').style.display = 'none';
+    document.getElementById('upload-parent-section').style.display = 'none';
+    // Hide content section (will show after user clicks "Add new")
+    document.getElementById('upload-content-section').style.display = 'none';
+    // Reset upload content state
+    aiGeneratedIssues = [];
+    document.getElementById('ai-prompt').value = '';
+    document.getElementById('preview-section').style.display = 'none';
+    document.getElementById('ai-status').style.display = 'none';
+    document.getElementById('btn-ai-upload').disabled = true;
+    document.getElementById('progress-section').style.display = 'none';
+    document.getElementById('summary-section').style.display = 'none';
+    document.getElementById('btn-start-upload').disabled = true;
+    // Clear progress log from previous runs
+    var logEl = document.getElementById('progress-log');
+    if (logEl) logEl.innerHTML = '';
+
+    // Show regenerate description button in breadcrumb
+    var regenBtn = document.getElementById('ubc-regen-desc');
+    if (regenBtn) regenBtn.style.display = 'inline-block';
+
+    // Disable LLM eval button (reset for new plan)
+    var llmBtn = document.getElementById('btn-llm-eval');
+    if (llmBtn) { llmBtn.disabled = true; llmBtn.textContent = '🧠 LLM评估上传的sub task'; }
+    // Enable re-evaluate button so user can re-run LLM eval on existing plan
+    var ubcBtn = document.getElementById('ubc-regen-desc');
+    if (ubcBtn) { ubcBtn.disabled = false; ubcBtn.textContent = '🧠 LLM重新评估'; }
+
+    // Show breadcrumb
+    showUploadBreadcrumb(key, summary, status);
+
+    // Load and show existing test cases first
+    loadUploadExistingCases(key);
+}
+
+function showUploadBreadcrumb(key, summary, status) {
+    var bar = document.getElementById('upload-breadcrumb');
+    bar.style.display = 'block';
+
+    var bcProject = document.getElementById('ubc-project');
+    var bcSep = document.getElementById('ubc-sep');
+    var bcParent = document.getElementById('ubc-parent');
+    var bcStatus = document.getElementById('ubc-status');
+    var bcBackParent = document.getElementById('ubc-back-parent');
+    var bcBackProject = document.getElementById('ubc-back-project');
+
+    bcProject.style.display = 'inline';
+    bcSep.style.display = 'inline';
+    bcParent.style.display = 'inline';
+    var jiraBase = 'https://jira01.birentech.com/browse/';
+    bcParent.innerHTML = (key ? '<a href="' + jiraBase + key + '" target="_blank" style="color:#1a73e8; text-decoration:none; border-bottom:1px dashed #1a73e8;">' + key + '</a> ' : '') + (summary || '').replace(/</g, '&lt;');
+    bcBackParent.style.display = 'inline';
+    bcBackProject.style.display = 'inline';
+
+    if (status) {
+        bcStatus.style.display = 'inline-block';
+        bcStatus.textContent = status;
+        var isOpen = status.indexOf('进行中') !== -1 || status.indexOf('Opened') !== -1 || status.indexOf('In Progress') !== -1;
+        bcStatus.style.background = isOpen ? '#dbeafe' : '#dcfce7';
+        bcStatus.style.color = isOpen ? '#2563eb' : '#16a34a';
+    } else {
+        bcStatus.style.display = 'none';
+    }
+}
+
+function uploadBackToParentList() {
+    document.getElementById('upload-content-section').style.display = 'none';
+    document.getElementById('upload-existing-section').style.display = 'none';
+    document.getElementById('upload-parent-section').style.display = 'block';
+    document.getElementById('upload-breadcrumb').style.display = 'none';
+    document.getElementById('upload-project-section').style.display = 'none';
+    // Hide regenerate description button
+    var regenBtn = document.getElementById('ubc-regen-desc');
+    if (regenBtn) regenBtn.style.display = 'none';
+    uploadSelectedPlanKey = '';
+    uploadSelectedPlanSummary = '';
+}
+
+function uploadBackToProject() {
+    document.getElementById('upload-content-section').style.display = 'none';
+    document.getElementById('upload-existing-section').style.display = 'none';
+    document.getElementById('upload-parent-section').style.display = 'none';
+    document.getElementById('upload-breadcrumb').style.display = 'none';
+    document.getElementById('upload-project-section').style.display = 'block';
+    // Hide regenerate description button
+    var regenBtn = document.getElementById('ubc-regen-desc');
+    if (regenBtn) regenBtn.style.display = 'none';
+    uploadSelectedPlanKey = '';
+    uploadSelectedPlanSummary = '';
+}
+
+function toggleCreatePlan() {
+    var form = document.getElementById('create-plan-form');
+    form.style.display = form.style.display === 'none' ? 'block' : 'none';
+}
+
+function createTestPlan() {
+    var project = document.getElementById('tc-project').value;
+    var name = document.getElementById('new-plan-name').value.trim();
+    var desc = document.getElementById('new-plan-desc').value.trim();
+    if (!project || !name) { alert('请填写项目和名称'); return; }
+
+    fetch('/api/testcase/testplan', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            ...(authToken ? { 'Authorization': 'Bearer ' + authToken } : {})
+        },
+        credentials: 'same-origin',
+        body: JSON.stringify({ project: project, summary: name, description: desc })
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (data.success && data.data) {
+            document.getElementById('new-plan-name').value = '';
+            document.getElementById('new-plan-desc').value = '';
+            document.getElementById('create-plan-form').style.display = 'none';
+            // Select the newly created plan
+            selectUploadParent(data.data.key, data.data.summary, '进行中');
+        } else {
+            alert('创建失败: ' + (data.error || '未知错误'));
+        }
+    })
+    .catch(function(e) { alert('创建失败: ' + e.message); });
+}
+
+
+// ============ Upload Tab: Existing Test Cases ============
+
+var uploadExistingCases = [];
+var uploadSelectedKeys = new Set();
+
+function loadUploadExistingCases(planKey) {
+    var tbody = document.getElementById('upload-existing-tbody');
+    var countEl = document.getElementById('upload-existing-count');
+    var statusEl = document.getElementById('upload-existing-status');
+    var section = document.getElementById('upload-existing-section');
+    
+    section.style.display = 'block';
+    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:20px; color:#999;">加载中...</td></tr>';
+    countEl.textContent = '...';
+    statusEl.textContent = '';
+    uploadSelectedKeys.clear();
+    updateUploadBatchDeleteBtn();
+    
+    // Fetch linked tasks for this plan
+    fetch('/api/testcase/testplan/linked-tasks/' + planKey, {
+        credentials: 'same-origin',
+        headers: authToken ? { 'Authorization': 'Bearer ' + authToken } : {}
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (!data.success || !data.data) throw new Error(data.error || '加载失败');
+        
+        var allTasks = data.data.tasks || [];
+        var directTasks = data.data.directTasks || [];
+        // Use direct tasks (only direct sub-tasks of this plan)
+        uploadExistingCases = directTasks.length > 0 ? directTasks : allTasks.filter(function(t) { return t.parent === planKey; });
+        
+        countEl.textContent = uploadExistingCases.length + ' 条';
+        if (uploadExistingCases.length === 0) {
+            statusEl.textContent = '该 Test Plan 下暂无 Test Case，点击上方按钮添加';
+            statusEl.style.color = '#999';
+        } else {
+            statusEl.textContent = '共 ' + uploadExistingCases.length + ' 条已有 Test Case，可查看或删除后再添加新的';
+            statusEl.style.color = '#666';
+        }
+        renderUploadExistingTable(uploadExistingCases);
+    })
+    .catch(function(e) {
+        tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:20px; color:#e74c3c;">加载失败: ' + e.message + '</td></tr>';
+        countEl.textContent = '0 条';
+        statusEl.textContent = '加载失败';
+        statusEl.style.color = '#e74c3c';
+    });
+}
+
+function renderUploadExistingTable(cases) {
+    var tbody = document.getElementById('upload-existing-tbody');
+    tbody.innerHTML = '';
+    
+    if (cases.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:20px; color:#999;">暂无 Test Case</td></tr>';
+        return;
+    }
+    
+    cases.forEach(function(issue) {
+        var tr = document.createElement('tr');
+        tr.setAttribute('data-key', issue.key);
+        
+        // Checkbox
+        var tdChk = document.createElement('td');
+        tdChk.style.textAlign = 'center';
+        var chk = document.createElement('input');
+        chk.type = 'checkbox';
+        chk.checked = uploadSelectedKeys.has(issue.key);
+        chk.setAttribute('data-key', issue.key);
+        chk.addEventListener('change', function(e) {
+            var k = e.target.getAttribute('data-key');
+            if (e.target.checked) uploadSelectedKeys.add(k);
+            else uploadSelectedKeys.delete(k);
+            tr.classList.toggle('selected-row', e.target.checked);
+            updateUploadBatchDeleteBtn();
+        });
+        tdChk.appendChild(chk);
+        tr.appendChild(tdChk);
+        
+        // Key
+        var tdKey = document.createElement('td');
+        tdKey.innerHTML = '<a href="' + (issue.url || 'https://jira01.birentech.com/browse/' + issue.key) + '" target="_blank" style="color:#3498db; text-decoration:none; font-weight:600;">' + issue.key + '</a>';
+        tr.appendChild(tdKey);
+        
+        // Summary
+        var tdSummary = document.createElement('td');
+        tdSummary.textContent = issue.summary || '';
+        tdSummary.title = issue.summary || '';
+        tr.appendChild(tdSummary);
+        
+        // Status
+        var tdStatus = document.createElement('td');
+        tdStatus.innerHTML = getStatusBadge(issue.status);
+        tr.appendChild(tdStatus);
+        
+        // Assignee
+        var tdAssignee = document.createElement('td');
+        tdAssignee.textContent = issue.assignee || '-';
+        tr.appendChild(tdAssignee);
+        
+        // Priority
+        var tdPriority = document.createElement('td');
+        tdPriority.innerHTML = getPriorityHtml(issue.priority);
+        tr.appendChild(tdPriority);
+        
+        // Action - Delete button
+        var tdAction = document.createElement('td');
+        tdAction.style.textAlign = 'center';
+        var delBtn = document.createElement('button');
+        delBtn.className = 'btn btn-sm';
+        delBtn.style.cssText = 'background:none; color:#e74c3c; border:1px solid #e74c3c; padding:2px 6px; font-size:11px; cursor:pointer; border-radius:4px;';
+        delBtn.textContent = '🗑️';
+        delBtn.title = '删除 ' + issue.key;
+        delBtn.onclick = (function(k) { return function() { uploadDeleteIssue(k); }; })(issue.key);
+        tdAction.appendChild(delBtn);
+        tr.appendChild(tdAction);
+        
+        tbody.appendChild(tr);
+    });
+}
+
+function toggleUploadSelectAll(checked) {
+    if (checked) {
+        uploadExistingCases.forEach(function(i) { uploadSelectedKeys.add(i.key); });
+    } else {
+        uploadSelectedKeys.clear();
+    }
+    document.querySelectorAll('#upload-existing-tbody input[type="checkbox"]').forEach(function(cb) {
+        cb.checked = checked;
+        var tr = cb.closest('tr');
+        if (tr) tr.classList.toggle('selected-row', checked);
+    });
+    updateUploadBatchDeleteBtn();
+}
+
+function updateUploadBatchDeleteBtn() {
+    var btn = document.getElementById('upload-batch-delete-btn');
+    if (btn) {
+        btn.style.display = uploadSelectedKeys.size > 0 ? 'inline-flex' : 'none';
+        btn.textContent = '🗑️ 批量删除选中 (' + uploadSelectedKeys.size + ')';
+    }
+}
+
+function uploadDeleteIssue(key) {
+    if (!confirm('确定要删除 ' + key + ' 吗？此操作不可撤销。')) return;
+    
+    fetch('/api/testcase/delete/' + key, {
+        method: 'DELETE',
+        credentials: 'same-origin',
+        headers: authToken ? { 'Authorization': 'Bearer ' + authToken } : {}
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (data.success) {
+            uploadExistingCases = uploadExistingCases.filter(function(t) { return t.key !== key; });
+            uploadSelectedKeys.delete(key);
+            document.getElementById('upload-existing-count').textContent = uploadExistingCases.length + ' 条';
+            renderUploadExistingTable(uploadExistingCases);
+            updateUploadBatchDeleteBtn();
+        } else {
+            alert('删除失败: ' + (data.error || '未知错误'));
+        }
+    })
+    .catch(function(e) { alert('删除失败: ' + e.message); });
+}
+
+function uploadBatchDeleteIssues() {
+    if (uploadSelectedKeys.size === 0) { alert('请先选择要删除的项'); return; }
+    var count = uploadSelectedKeys.size;
+    if (!confirm('确定要删除选中的 ' + count + ' 个 Test Case 吗？此操作不可撤销。')) return;
+    
+    var keys = Array.from(uploadSelectedKeys);
+    var btn = document.getElementById('upload-batch-delete-btn');
+    if (btn) { btn.disabled = true; btn.textContent = '⏳ 删除中...'; }
+    
+    fetch('/api/testcase/batch-delete', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: {
+            'Content-Type': 'application/json',
+            ...(authToken ? { 'Authorization': 'Bearer ' + authToken } : {})
+        },
+        body: JSON.stringify({ keys: keys })
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (data.success && data.data) {
+            var deleted = data.data.deleted || 0;
+            var failed = data.data.failed || 0;
+            if (failed > 0) {
+                var errMsg = (data.data.errors || []).map(function(e) { return e.key + ': ' + e.error; }).join('\n');
+                alert('✅ 删除 ' + deleted + ' 条\n❌ 失败 ' + failed + ' 条\n\n' + errMsg);
+            } else {
+                alert('✅ 成功删除 ' + deleted + ' 条 Test Case');
+            }
+            // Reload existing cases
+            loadUploadExistingCases(uploadSelectedPlanKey);
+        } else {
+            alert('批量删除失败: ' + (data.error || '未知错误'));
+        }
+        if (btn) { btn.disabled = false; btn.textContent = '🗑️ 批量删除选中'; }
+    })
+    .catch(function(e) {
+        alert('批量删除失败: ' + e.message);
+        if (btn) { btn.disabled = false; btn.textContent = '🗑️ 批量删除选中'; }
+    });
+}
+
+function showUploadContentSection() {
+    document.getElementById('upload-existing-section').style.display = 'none';
+    document.getElementById('upload-content-section').style.display = 'block';
+}
+
+// ============ Natural Language Command ============
+
+var aiGeneratedIssues = [];
+var _dialogAssignee = '';
+var _dialogComponent = '';
+var _createMode = ''; // 'subtestplan' when user clicked "批量新建Sub Test Plan"
+
+function fillCommand(text) {
+    document.getElementById('ai-prompt').value = text;
+}
+
+// Handle paste of tab-separated or space-separated data
+var aiPromptEl = document.getElementById('ai-prompt');
+if (aiPromptEl) {
+    // Ensure Enter key works in textarea for creating new lines
+    aiPromptEl.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            // Allow default newline behavior in textarea
+            e.stopPropagation();
+        }
+    });
+
+    aiPromptEl.addEventListener('paste', function(e) {
+        // Prevent default paste to avoid duplication
+        e.preventDefault();
+        
+        var text = (e.clipboardData || window.clipboardData).getData('text');
+        if (!text) return;
+
+    // Normalize line endings and split
+    var lines = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n').filter(function(l) { return l.trim(); });
+    if (lines.length < 1) return;
+
+    var issues = [];
+    lines.forEach(function(line) {
+        var title, desc, priority;
+
+        // ALWAYS try tab split first
+        var tabParts = line.split('\t');
+        if (tabParts.length >= 2) {
+            // Tab-separated
+            title = tabParts[0].trim();
+            desc = tabParts[1].trim();
+            priority = (tabParts[2] || '').trim();
+        } else {
+            // No tab - try to split English title from Chinese description
+            var trimmed = line.trim();
+            var match = trimmed.match(/^([A-Za-z0-9_+\-]+(?:\s+[A-Za-z0-9_+\-]+){0,3})\s+([\u4e00-\u9fa5].+)$/);
+            if (match) {
+                title = match[1].trim();
+                desc = match[2].trim();
+            } else {
+                title = trimmed;
+                desc = '';
+            }
+            priority = '';
+        }
+
+        // Remove leading/trailing pipes if pasted from markdown table
+        title = title.replace(/^\|/, '').replace(/\|$/, '').trim();
+        desc = desc.replace(/^\|/, '').replace(/\|$/, '').trim();
+        priority = priority.replace(/^\|/, '').replace(/\|$/, '').trim();
+
+        // Map priority
+        var validPriorities = ['Highest', 'High', 'Medium', 'Low', 'Lowest'];
+        if (!priority || !validPriorities.some(function(p) { return p.toLowerCase() === priority.toLowerCase(); })) {
+            priority = 'Highest';
+        } else {
+            priority = validPriorities.find(function(p) { return p.toLowerCase() === priority.toLowerCase(); });
+        }
+
+        // Skip empty, pure header rows, or assignee hint lines
+        if (title && !title.match(/^[#=|]+$/) && title.length > 0 && !title.match(/负责人/)) {
+            issues.push({
+                action: 'create',
+                summary: title,
+                description: desc,
+                issuetype: 'Sub-task',
+                priority: priority,
+                labels: '',
+                parentKey: uploadSelectedPlanKey || '',
+                assignee: '',
+                components: ''
+            });
+        }
+    }); // end lines.forEach
+
+    if (issues.length > 0) {
+        // Preserve assignee/component from existing text, then add pasted data
+        var textarea = document.getElementById('ai-prompt');
+        var existing = textarea.value.trim();
+        var preservedCmd = '';
+        
+        // Extract assignee and component from existing command
+        var assigneeMatch = existing.match(/负责人[为是:：]\s*(.+?)(?:[,，]|$)/);
+        var compMatch = existing.match(/组件[为是:：]\s*(.+?)(?:[,，]|$)/);
+        if (assigneeMatch || compMatch) {
+            preservedCmd = '在当前Test Plan下创建测试用例';
+            if (assigneeMatch) preservedCmd += ',负责人为' + assigneeMatch[1].trim();
+            if (compMatch) preservedCmd += ',组件为' + compMatch[1].trim();
+        }
+        
+        // Append text to textarea instead of replacing
+        var existingText = textarea.value.trim();
+        if (existingText) {
+            textarea.value = existingText + '\n' + text;
+        } else {
+            textarea.value = preservedCmd ? preservedCmd + '\n' + text : text;
+        }
+        // Append to pending issues instead of overwriting
+        if (!window._pendingPasteIssues) window._pendingPasteIssues = [];
+        window._pendingPasteIssues = window._pendingPasteIssues.concat(issues);
+        var statusEl = document.getElementById('ai-status');
+        statusEl.className = 'ai-status success';
+        statusEl.textContent = '✅ 检测到 ' + window._pendingPasteIssues.length + ' 条数据，点击「解析并创建」按钮解析';
+        statusEl.style.display = 'block';
+    }
+    // If no valid issues parsed, let the default paste happen (regular text)
+});
+} // end if (aiPromptEl)
+
+
+// ============ JIRA User Match ============
+function matchJiraUser(name) {
+    return new Promise(function(resolve) {
+        if (!name || name.match(/^E\d+$/)) {
+            resolve(name);
+            return;
+        }
+        var project = document.getElementById('tc-project').value || 'BR200';
+        fetch('/api/testcase/search?project=' + project + '&maxResults=100', {
+            credentials: 'same-origin',
+            headers: authToken ? { 'Authorization': 'Bearer ' + authToken } : {}
+        })
+        .then(function(r) { return r.json(); })
+        .then(function() {
+            // Use the backend's user search via a direct approach
+            // For now, just return the original name - backend will handle matching
+            resolve(name);
+        })
+        .catch(function() {
+            resolve(name);
+        });
+    });
+}
+
+function generateWithAI() {
+    // Check if there's pending paste data
+    if (window._pendingPasteIssues && window._pendingPasteIssues.length > 0) {
+        var command = document.getElementById('ai-prompt').value.trim();
+        
+        // Search entire text for assignee (e.g., "负责人为Cao Xianjie" or "负责人为E01860")
+        var assignee = '';
+        var assigneeMatch = command.match(/负责人[为是:：]\s*(.+?)(?:[,，]|$)/);
+        if (assigneeMatch) {
+            assignee = assigneeMatch[1].trim();
+        }
+        
+        // Use dialog values (stored globally) as primary, command as fallback
+        var component = _dialogComponent || '';
+        if (!component) {
+            var compMatch = command.match(/组件[为是:：]\s*(.+?)(?:[,，]|$)/);
+            if (compMatch) component = compMatch[1].trim();
+        }
+        // Also get assignee from dialog if not found in command
+        if (!assignee && _dialogAssignee) {
+            assignee = _dialogAssignee;
+        }
+        console.log('[DEBUG] generateWithAI: assignee=' + assignee + ', component=' + component + ', _dialogComponent=' + _dialogComponent);
+        
+        // Apply assignee and component to all issues
+        aiGeneratedIssues = window._pendingPasteIssues.map(function(issue) {
+            var fixed = Object.assign({}, issue, { 
+                assignee: assignee || issue.assignee || '', 
+                components: component || issue.components || '' 
+            });
+            // Fix issuetype: if user clicked "批量新建Sub Test Plan", force to "Test Plan"
+            if (_createMode === 'subtestplan') {
+                fixed.issuetype = 'Test Plan';
+            }
+            return fixed;
+        });
+        // Reset dialog values
+        _dialogAssignee = '';
+        _dialogComponent = '';
+        window._pendingPasteIssues = null;
+        
+        console.log('[AI] Final issues with assignee/component:', JSON.stringify(aiGeneratedIssues[0], null, 2));
+        
+        var statusEl = document.getElementById('ai-status');
+        statusEl.className = 'ai-status success';
+        var assigneeInfo = assignee ? '，负责人: ' + assignee : '';
+        var compInfo = component ? '，组件: ' + component : '';
+        statusEl.textContent = '✅ 已解析 ' + aiGeneratedIssues.length + ' 条测试用例' + assigneeInfo + compInfo;
+        statusEl.style.display = 'block';
+        renderAiPreview();
+        document.getElementById('btn-ai-upload').disabled = false;
+        document.getElementById('ai-prompt').value = '';
+        return;
+    }
+
+    var project = document.getElementById('tc-project').value;
+    if (!project) { alert('请先选择目标项目'); return; }
+
+    var command = document.getElementById('ai-prompt').value.trim();
+    if (!command) { alert('请输入指令'); return; }
+
+    var parentKey = uploadSelectedPlanKey || '';
+    var parentSummary = uploadSelectedPlanSummary || '';
+
+    var statusEl = document.getElementById('ai-status');
+    statusEl.className = 'ai-status loading';
+    statusEl.textContent = '🔄 正在解析指令...';
+    statusEl.style.display = 'block';
+
+    document.getElementById('btn-ai-generate').disabled = true;
+    document.getElementById('btn-ai-upload').disabled = true;
+
+    fetch('/api/testcase/ai-generate', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            ...(authToken ? { 'Authorization': 'Bearer ' + authToken } : {})
+        },
+        credentials: 'same-origin',
+        body: JSON.stringify({
+            project: project,
+            parentKey: parentKey,
+            parentSummary: parentSummary,
+            command: command
+        })
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (data.success && data.data && data.data.actions) {
+            aiGeneratedIssues = data.data.actions;
+            // Fix issuetype: if user clicked "批量新建Sub Test Plan" or command mentions it, force to "Test Plan"
+            var cmdLower = document.getElementById('ai-prompt').value.toLowerCase();
+            if (_createMode === 'subtestplan' || cmdLower.indexOf('sub test plan') !== -1 || cmdLower.indexOf('sub-test plan') !== -1) {
+                aiGeneratedIssues.forEach(function(action) {
+                    action.issuetype = 'Test Plan';
+                });
+            }
+            _createMode = '';
+            // Fallback: extract components/assignee from command if LLM didn't return them
+            var cmdText = document.getElementById('ai-prompt').value;
+            var cmdCompMatch = cmdText.match(/组件[为是:：]\s*(.+?)(?:[,，]|$)/);
+            var cmdComp = cmdCompMatch ? cmdCompMatch[1].trim() : '';
+            aiGeneratedIssues.forEach(function(action) {
+                if (!action.components && cmdComp) {
+                    action.components = cmdComp;
+                }
+            });
+            // Post-process: match assignees to JIRA users and normalize components
+            var project = document.getElementById('tc-project').value || 'BR200';
+            var matchPromises = aiGeneratedIssues.map(function(action) {
+                // Normalize components: array -> string
+                if (Array.isArray(action.components)) {
+                    action.components = action.components.join(', ');
+                }
+                if (!action.assignee) return Promise.resolve();
+                return fetch('/api/testcase/search-user?name=' + encodeURIComponent(action.assignee), {
+                    credentials: 'same-origin',
+                    headers: authToken ? { 'Authorization': 'Bearer ' + authToken } : {}
+                })
+                .then(function(r) { return r.json(); })
+                .then(function(userData) {
+                    if (userData.success && userData.data && userData.data.bestMatch) {
+                        action.assignee = userData.data.bestMatch.name || userData.data.bestMatch.displayName || action.assignee;
+                    }
+                })
+                .catch(function() {});
+            });
+            Promise.all(matchPromises).then(function() {
+                statusEl.className = 'ai-status success';
+                var summary = aiGeneratedIssues.map(function(a) { return a.issuetype + ': ' + a.summary; }).join(', ');
+                statusEl.textContent = '✅ 解析完成，共 ' + aiGeneratedIssues.length + ' 个操作: ' + summary;
+                renderAiPreview();
+                document.getElementById('btn-ai-upload').disabled = false;
+            });
+        } else {
+            statusEl.className = 'ai-status error';
+            statusEl.textContent = '❌ ' + (data.error || '解析失败');
+            if (data.raw) statusEl.textContent += '\n\n' + data.raw.substring(0, 300);
+        }
+    })
+    .catch(function(e) {
+        statusEl.className = 'ai-status error';
+        statusEl.textContent = '❌ 网络错误: ' + e.message;
+    })
+    .finally(function() {
+        document.getElementById('btn-ai-generate').disabled = false;
+    });
+}
+
+function renderAiPreview() {
+    var previewSection = document.getElementById('preview-section');
+    var previewCount = document.getElementById('preview-count');
+    var thead = document.getElementById('preview-thead');
+    var tbody = document.getElementById('preview-tbody');
+
+    previewSection.style.display = 'block';
+    previewCount.textContent = '(' + aiGeneratedIssues.length + ' 条)';
+
+    thead.innerHTML = '<tr><th>#</th><th>类型</th><th>标题</th><th>描述</th><th>优先级</th><th>负责人</th><th>组件</th><th>父任务</th><th>操作</th></tr>';
+    tbody.innerHTML = '';
+
+    console.log('[DEBUG] renderAiPreview: first issue components=' + (aiGeneratedIssues[0] ? aiGeneratedIssues[0].components : 'N/A'));
+    aiGeneratedIssues.forEach(function(issue, idx) {
+        var tr = document.createElement('tr');
+        var typeBadge = issue.issuetype === 'Test Plan' ?
+            '<span style="background:#fef3e0; color:#e65100; padding:2px 8px; border-radius:10px; font-size:11px; font-weight:600;">Test Plan</span>' :
+            '<span style="background:#e8f0fe; color:#1a73e8; padding:2px 8px; border-radius:10px; font-size:11px; font-weight:600;">Sub-task</span>';
+
+        tr.innerHTML = '<td>' + (idx + 1) + '</td>' +
+            '<td><select class="inline-select" data-field="issuetype" onchange="updateAiIssue(' + idx + ', this)">' +
+                '<option value="Test Plan"' + (issue.issuetype === 'Test Plan' ? ' selected' : '') + '>Test Plan</option>' +
+                '<option value="Sub-task"' + (issue.issuetype === 'Sub-task' ? ' selected' : '') + '>Sub-task</option>' +
+                '<option value="Task"' + (issue.issuetype === 'Task' ? ' selected' : '') + '>Task</option>' +
+            '</select></td>' +
+            '<td contenteditable="true" class="editable-cell" data-field="summary">' + escapeHtml(issue.summary) + '</td>' +
+            '<td contenteditable="true" class="editable-cell" data-field="description" style="max-width:300px; white-space:pre-wrap; font-size:12px;">' + escapeHtml(issue.description) + '</td>' +
+            '<td><select class="inline-select" data-field="priority" onchange="updateAiIssue(' + idx + ', this)">' +
+                '<option value="Highest"' + (issue.priority === 'Highest' ? ' selected' : '') + '>Highest</option>' +
+                '<option value="High"' + (issue.priority === 'High' ? ' selected' : '') + '>High</option>' +
+                '<option value="Medium"' + (issue.priority === 'Medium' ? ' selected' : '') + '>Medium</option>' +
+                '<option value="Low"' + (issue.priority === 'Low' ? ' selected' : '') + '>Low</option>' +
+                '<option value="Lowest"' + (issue.priority === 'Lowest' ? ' selected' : '') + '>Lowest</option>' +
+            '</select></td>' +
+            '<td contenteditable="true" class="editable-cell" data-field="assignee" style="font-size:12px;">' + escapeHtml(issue.assignee || '') + '</td>' +
+            '<td contenteditable="true" class="editable-cell" data-field="components" style="font-size:12px;">' + escapeHtml(issue.components || '') + '</td>' +
+            '<td style="font-size:12px; color:#888;">' + escapeHtml(issue.parentKey || uploadSelectedPlanKey || '-') + '</td>' +
+            '<td><button class="btn btn-outline btn-sm" onclick="removeAiIssue(' + idx + ')" style="color:#e74c3c; font-size:11px;">删除</button></td>';
+        tbody.appendChild(tr);
+    });
+
+    tbody.querySelectorAll('.editable-cell').forEach(function(cell) {
+        cell.addEventListener('blur', function() {
+            var idx = parseInt(this.closest('tr').querySelector('td').textContent) - 1;
+            var field = this.dataset.field;
+            if (idx >= 0 && idx < aiGeneratedIssues.length) {
+                aiGeneratedIssues[idx][field] = this.textContent.trim();
+            }
+        });
+    });
+}
+
+function updateAiIssue(idx, selectEl) {
+    if (idx >= 0 && idx < aiGeneratedIssues.length) {
+        aiGeneratedIssues[idx][selectEl.dataset.field] = selectEl.value;
+    }
+}
+
+function removeAiIssue(idx) {
+    aiGeneratedIssues.splice(idx, 1);
+    renderAiPreview();
+    if (aiGeneratedIssues.length === 0) {
+        document.getElementById('btn-ai-upload').disabled = true;
+    }
+}
+
+function clearAiResults() {
+    aiGeneratedIssues = [];
+    document.getElementById('ai-prompt').value = '';
+    document.getElementById('preview-section').style.display = 'none';
+    document.getElementById('ai-status').style.display = 'none';
+    document.getElementById('btn-ai-upload').disabled = true;
+    // Disable LLM eval button
+    var llmBtn = document.getElementById('btn-llm-eval');
+    if (llmBtn) { llmBtn.disabled = true; llmBtn.textContent = '🧠 LLM评估上传的sub task'; }
+}
+
+function uploadAiResults() {
+    if (aiGeneratedIssues.length === 0) { alert('没有可创建的内容'); return; }
+
+    var project = document.getElementById('tc-project').value;
+    if (!project) { alert('请先选择目标项目'); return; }
+
+    // Build issues for batch-create
+    parsedData = aiGeneratedIssues.map(function(action) {
+        return {
+            '标题': action.summary,
+            '描述': action.description,
+            '优先级': action.priority,
+            'Issue类型': action.issuetype,
+            '标签': action.labels || '',
+            '父任务Key': action.parentKey || uploadSelectedPlanKey || '',
+            '负责人': action.assignee || '',
+            '组件': action.components || ''
+        };
+    });
+
+    headers = ['标题', '描述', '优先级', 'Issue类型', '标签', '父任务Key'];
+    startBatchUpload();
+}
+
+// ============ Batch Upload ============
+
+function startBatchUpload() {
+    var project = document.getElementById('tc-project').value;
+    if (!project) {
+        alert('请先选择目标项目');
+        return;
+    }
+
+    if (parsedData.length === 0) {
+        alert('没有可上传的数据');
+        return;
+    }
+
+    var issues = parsedData.map(function(row) {
+        var issue = {
+            summary: row['标题'] || row['summary'] || row['名称'] || '',
+            description: row['描述'] || row['description'] || '',
+            issuetype: row['Issue类型'] || row['类型'] || row['issuetype'] || document.getElementById('tc-issuetype').value,
+            priority: row['优先级'] || row['priority'] || document.getElementById('tc-priority').value,
+            labels: row['标签'] || row['labels'] || '',
+            assignee: row['负责人'] || row['assignee'] || document.getElementById('tc-assignee').value,
+            components: row['组件'] || row['components'] || '',
+            parentKey: row['父任务Key'] || row['parent'] || row['父任务'] || ''
+        };
+
+        // If a test plan is selected and no explicit parent, use the test plan as parent
+        if (selectedPlanKey && !issue.parentKey) {
+            issue.parentKey = selectedPlanKey;
+            if (!row['Issue类型'] && !row['类型'] && !row['issuetype']) {
+                issue.issuetype = 'Sub-task';
+            }
+        }
+
+        return issue;
+    });
+
+    var validIssues = issues.filter(function(iss) { return iss.summary; });
+    if (validIssues.length === 0) {
+        alert('所有记录都缺少标题，无法上传');
+        return;
+    }
+
+    document.getElementById('progress-section').style.display = 'block';
+    document.getElementById('summary-section').style.display = 'none';
+    document.getElementById('btn-start-upload').disabled = true;
+
+    uploadResults = [];
+    var total = validIssues.length;
+    var completed = 0;
+    var successCount = 0;
+    var failCount = 0;
+    var logEl = document.getElementById('progress-log');
+    logEl.innerHTML = '';
+
+    var batchSize = 10;
+    var batches = [];
+    for (var i = 0; i < validIssues.length; i += batchSize) {
+        batches.push(validIssues.slice(i, i + batchSize));
+    }
+
+    var batchIdx = 0;
+    function processNextBatch() {
+        if (batchIdx >= batches.length) {
+            updateProgress(total, total, successCount, failCount);
+            showSummary(total, successCount, failCount);
+            document.getElementById('btn-start-upload').disabled = false;
+            return;
+        }
+
+        var batch = batches[batchIdx];
+        batchIdx++;
+
+        fetch('/api/testcase/batch-create', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': 'Bearer ' + authToken
+            },
+            body: JSON.stringify({ project: project, issues: batch })
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.success && data.data) {
+                data.data.results.forEach(function(r) {
+                    completed++;
+                    successCount++;
+                    uploadResults.push(r);
+                    updateStatusCell(r.row - 1, 'created', r.key, r.url);
+                    addLog('✅ Row ' + r.row + ': ' + r.key + ' — ' + r.summary, 'ok');
+                });
+                data.data.errors.forEach(function(err) {
+                    completed++;
+                    failCount++;
+                    updateStatusCell(err.row - 1, 'failed', null, null, err.error);
+                    addLog('❌ Row ' + err.row + ': ' + err.summary + ' — ' + err.error, 'err');
+                });
+            } else {
+                batch.forEach(function(iss) {
+                    completed++;
+                    failCount++;
+                    addLog('❌ ' + iss.summary + ' — ' + (data.error || '请求失败'), 'err');
+                });
+            }
+            updateProgress(total, completed, successCount, failCount);
+            processNextBatch();
+        })
+        .catch(function(e) {
+            batch.forEach(function(iss) {
+                completed++;
+                failCount++;
+                addLog('❌ ' + iss.summary + ' — 网络错误: ' + e.message, 'err');
+            });
+            updateProgress(total, completed, successCount, failCount);
+            processNextBatch();
+        });
+    }
+
+    var planInfo = uploadSelectedPlanKey ? ' (Plan: ' + uploadSelectedPlanKey + ')' : '';
+    addLog('🚀 开始上传 ' + total + ' 条 Issue 到 ' + project + planInfo, 'ok');
+    processNextBatch();
+}
+
+function updateProgress(total, completed, success, fail) {
+    var pct = total > 0 ? Math.round((completed / total) * 100) : 0;
+    document.getElementById('progress-bar').style.width = pct + '%';
+    document.getElementById('progress-current').textContent = completed + ' / ' + total;
+    document.getElementById('progress-percent').textContent = pct + '%';
+}
+
+function updateStatusCell(rowIdx, status, key, url, errorMsg) {
+    var cell = document.getElementById('status-' + rowIdx);
+    if (!cell) return;
+
+    if (status === 'created') {
+        cell.className = 'status-created';
+        cell.innerHTML = '<a href="' + url + '" target="_blank">' + key + '</a>';
+    } else if (status === 'failed') {
+        cell.className = 'status-failed';
+        cell.textContent = '❌ 失败';
+        cell.title = errorMsg || '';
+    }
+}
+
+function addLog(text, type) {
+    var logEl = document.getElementById('progress-log');
+    var line = document.createElement('div');
+    line.className = type === 'ok' ? 'log-ok' : 'log-err';
+    line.textContent = text;
+    logEl.appendChild(line);
+    logEl.scrollTop = logEl.scrollHeight;
+}
+
+function showSummary(total, success, fail) {
+    var section = document.getElementById('summary-section');
+    section.style.display = 'block';
+    document.getElementById('sum-total').textContent = total;
+    document.getElementById('sum-success').textContent = success;
+    document.getElementById('sum-fail').textContent = fail;
+
+    // Reset LLM eval status
+    var llmEl = document.getElementById('llm-eval-status');
+    if (llmEl) llmEl.style.display = 'none';
+
+    addLog('📊 上传完成: ' + success + ' 成功 / ' + fail + ' 失败 / ' + total + ' 总计', success > 0 ? 'ok' : 'err');
+
+    // Enable LLM eval button if there were successful uploads to a test plan
+    var llmBtn = document.getElementById('btn-llm-eval');
+    if (uploadSelectedPlanKey && success > 0 && llmBtn) {
+        llmBtn.disabled = false;
+    }
+}
+
+function llmEvalAfterUpload() {
+    if (!uploadSelectedPlanKey) {
+        alert('请先选择一个 Test Plan');
+        return;
+    }
+    var btn = document.getElementById('btn-llm-eval');
+    window._llmActualStartTime = null; // Will be set when LLM actually starts
+    if (btn) {
+        btn.disabled = true;
+        btn.textContent = '⏳ 评估中...';
+    }
+    showLlmEvalStatus('loading', '⏳ 正在评估中...');
+
+    // Call updatePlanDescription which handles the full flow
+    updatePlanDescription(uploadSelectedPlanKey);
+
+    // Monitor completion
+    var checkCount = 0;
+    var ubcBtn2 = document.getElementById('ubc-regen-desc');
+    var checkInterval = setInterval(function() {
+        checkCount++;
+        var logEl = document.getElementById('progress-log');
+        if (logEl) {
+            var logs = logEl.textContent;
+            var elapsed = window._llmActualStartTime ? ((Date.now() - window._llmActualStartTime) / 1000).toFixed(0) : null;
+            if (logs.indexOf('✅ LLM 专家评估完成，正在更新 JIRA...') !== -1 && logs.indexOf('✅ Test Plan 描述已更新: ' + uploadSelectedPlanKey) !== -1) {
+                clearInterval(checkInterval);
+                if (btn) { btn.disabled = false; btn.textContent = '🧠 LLM评估上传的sub task'; }
+                if (ubcBtn2) { ubcBtn2.disabled = false; ubcBtn2.textContent = '🧠 LLM重新评估'; }
+                showLlmEvalStatus('ok', '✅ 评估完成，耗时 ' + (elapsed || '?') + ' 秒');
+            } else if (logs.indexOf('更新描述失败') !== -1) {
+                clearInterval(checkInterval);
+                if (btn) { btn.disabled = false; btn.textContent = '🧠 LLM评估上传的sub task'; }
+                if (ubcBtn2) { ubcBtn2.disabled = false; ubcBtn2.textContent = '🧠 LLM重新评估'; }
+                showLlmEvalStatus('err', '❌ 评估失败，请重试 (耗时 ' + (elapsed || '?') + ' 秒)');
+            } else if (checkCount > 600) {
+                clearInterval(checkInterval);
+                if (btn) { btn.disabled = false; btn.textContent = '🧠 LLM评估上传的sub task'; }
+                if (ubcBtn2) { ubcBtn2.disabled = false; ubcBtn2.textContent = '🧠 LLM重新评估'; }
+                showLlmEvalStatus('err', '⚠️ 超时 (已等待 ' + (elapsed || '?') + ' 秒)，请检查日志');
+            } else {
+                showLlmEvalStatus('loading', elapsed ? '⏳ 评估中...已等待 ' + elapsed + ' 秒' : '⏳ 等待LLM响应...');
+            }
+        }
+    }, 1000);
+}
+
+function showLlmEvalStatus(status, text) {
+    var el = document.getElementById('llm-eval-status');
+    var icon = document.getElementById('llm-eval-icon');
+    var textEl = document.getElementById('llm-eval-text');
+    if (!el) return;
+    el.style.display = 'flex';
+    if (status === 'loading') {
+        el.style.background = '#eff6ff';
+        el.style.color = '#2563eb';
+        icon.textContent = '🤖';
+        textEl.textContent = text;
+    } else if (status === 'ok') {
+        el.style.background = '#f0fdf4';
+        el.style.color = '#16a34a';
+        icon.textContent = '✅';
+        textEl.textContent = text;
+    } else if (status === 'skip') {
+        el.style.background = '#fffbeb';
+        el.style.color = '#d97706';
+        icon.textContent = '⚠️';
+        textEl.textContent = text;
+    } else if (status === 'err') {
+        el.style.background = '#fef2f2';
+        el.style.color = '#dc2626';
+        icon.textContent = '❌';
+        textEl.textContent = text;
+    }
+}
+
+function updatePlanDescription(planKey, skipStep3) {
+    // Clear progress log from previous runs to prevent polling false-positive
+    var logEl = document.getElementById('progress-log');
+    if (logEl) logEl.innerHTML = '';
+    addLog('📝 正在生成 Test Plan 描述摘要...', 'ok');
+    showLlmEvalStatus('loading', '正在获取 Sub-task 列表...');
+
+    fetch('/api/testcase/testplan/linked-tasks/' + planKey + '?_t=' + Date.now(), {
+        credentials: 'same-origin',
+        headers: { 'Authorization': 'Bearer ' + authToken }
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (!data.success || !data.data || !data.data.tasks || data.data.tasks.length === 0) {
+            addLog('⚠️ 未找到关联的 Sub-task', 'err');
+            return;
+        }
+
+        var allTasks = data.data.tasks;
+        var directTasks = data.data.directTasks;
+        var planSummary = data.data.planSummary || planKey;
+
+        // Use directTasks if available (backend-filtered), otherwise filter locally
+        var tasks = directTasks && directTasks.length > 0 ? directTasks : allTasks.filter(function(t) { return t.parent === planKey; });
+        if (tasks.length < allTasks.length) {
+            addLog('📋 从 ' + allTasks.length + ' 条关联任务中筛选出 ' + planKey + ' 的 ' + tasks.length + ' 条直接 Sub-task', 'ok');
+        }
+
+        // Always call LLM: generate for missing, enhance for existing
+        var tasksNeedingGen = tasks.filter(function(t) { return !t.description || t.description.trim() === ''; });
+        var tasksNeedingEnhance = tasks.filter(function(t) { return t.description && t.description.trim() !== ''; });
+
+        if (tasksNeedingGen.length > 0) {
+            addLog('🤖 ' + tasksNeedingGen.length + ' 条缺少描述，' + tasksNeedingEnhance.length + ' 条需要增强，LLM 处理中...', 'ok');
+        } else {
+            addLog('🤖 ' + tasksNeedingEnhance.length + ' 条描述需要 LLM 增强...', 'ok');
+        }
+
+        // Estimate time: ~3 seconds per task, minimum 30 seconds
+        var BATCH_SIZE = 10;
+        var CONCURRENCY = 3;
+        var estimatedSeconds = Math.max(30, tasks.length * 3);
+        var estMin = Math.floor(estimatedSeconds / 60);
+        var estSec = estimatedSeconds % 60;
+        var estText = estMin > 0 ? estMin + '分' + (estSec > 0 ? estSec + '秒' : '') : estSec + '秒';
+        var totalBatches = Math.ceil(tasks.length / BATCH_SIZE);
+        addLog('📊 预计处理: ' + tasks.length + ' 条 → ' + totalBatches + ' 批×' + CONCURRENCY + '并发，预计耗时约 ' + estText, 'ok');
+        showLlmEvalStatus('loading', '⏳ 预计耗时约 ' + estText + '，正在处理 ' + tasks.length + ' 条 Sub-task...');
+
+        window._llmActualStartTime = Date.now();
+
+        // If skipStep3, skip LLM description generation and go directly to expert evaluation
+        if (skipStep3) {
+            addLog('⏭️ 跳过描述生成，直接进行LLM专家评估...', 'ok');
+            showLlmEvalStatus('loading', 'LLM专家评估 Test Plan 中...');
+            return generateAndUploadDescription(tasks, planSummary, planKey);
+        }
+
+        // Call LLM to generate/enhance descriptions
+        return fetch('/api/testcase/testplan/llm-evaluate', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': 'Bearer ' + authToken
+            },
+            body: JSON.stringify({
+                planKey: planKey,
+                planSummary: planSummary,
+                tasks: tasks.map(function(t) {
+                    return { key: t.key, summary: t.summary, description: t.description || '', status: t.status || '', priority: t.priority || '', parent: t.parent || '' };
+                }),
+                mode: 'generate_descriptions'
+            })
+        })
+        .then(function(r) {
+            var contentType = r.headers.get('content-type');
+            if (contentType && contentType.indexOf('text/html') !== -1) {
+                throw new Error('服务器超时返回HTML，请重试');
+            }
+            return r.json();
+        })
+        .then(function(llmResult) {
+            if (llmResult.success && llmResult.data && llmResult.data.descriptions) {
+                var descMap = llmResult.data.descriptions;
+                // Logic: 
+                // - Has original + no LLM content → keep original + append LLM enhancement
+                // - Has original + already has LLM content → replace LLM part only
+                // - No description → use LLM generated full description
+                var enhanced = 0;
+                var generated = 0;
+                tasks.forEach(function(t) {
+                    if (descMap[t.key]) {
+                        var origDesc = (t.description || '').trim();
+                        if (origDesc) {
+                            // Check if already has LLM content (测试目的/期望预期 markers)
+                            var llmMarkerIdx = origDesc.indexOf('测试目的');
+                            if (llmMarkerIdx === -1) llmMarkerIdx = origDesc.indexOf('期望预期');
+                            if (llmMarkerIdx !== -1) {
+                                // Has LLM content → extract original part (before LLM marker) + append new LLM content
+                                var originalPart = origDesc.substring(0, llmMarkerIdx).trim();
+                                if (originalPart) {
+                                    t.description = originalPart + '\n\n' + descMap[t.key];
+                                } else {
+                                    // No original content, just LLM → replace with new LLM
+                                    t.description = descMap[t.key];
+                                }
+                            } else {
+                                // Original without LLM → keep original + append
+                                t.description = origDesc + '\n\n' + descMap[t.key];
+                            }
+                            enhanced++;
+                        } else {
+                            // No description → use LLM generated
+                            t.description = descMap[t.key];
+                            generated++;
+                        }
+                    }
+                });
+                addLog('✅ LLM 处理完成: ' + (generated + enhanced) + ' 条描述已生成/更新', 'ok');
+                showLlmEvalStatus('loading', '正在将描述写回 JIRA...');
+
+                // Build map: ALL tasks that got LLM descriptions
+                var allDescMap = {};
+                tasks.forEach(function(t) {
+                    if (descMap[t.key]) {
+                        allDescMap[t.key] = t.description;
+                    }
+                });
+
+                if (Object.keys(allDescMap).length === 0) {
+                    addLog('ℹ️ 无描述需要更新', 'ok');
+                    return generateAndUploadDescription(tasks, planSummary, planKey);
+                }
+
+                // Write all updated descriptions back to JIRA sub-tasks
+                return fetch('/api/testcase/testplan/update-descriptions', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': 'Bearer ' + authToken
+                    },
+                    body: JSON.stringify({ descriptions: allDescMap })
+                })
+                .then(function(r) {
+                    var contentType = r.headers.get('content-type');
+                    if (contentType && contentType.indexOf('text/html') !== -1) {
+                        throw new Error('Server returned HTML instead of JSON');
+                    }
+                    return r.json();
+                })
+                .then(function(updateResult) {
+                    if (updateResult.success && updateResult.data) {
+                        addLog('✅ JIRA 描述已更新: ' + updateResult.data.ok + ' 成功 / ' + updateResult.data.failed + ' 失败', 'ok');
+                        // Step 3 success → auto-trigger Step 4 (LLM expert evaluation)
+                        return generateAndUploadDescription(tasks, planSummary, planKey);
+                    } else {
+                        addLog('⚠️ JIRA 描述更新失败: ' + (updateResult.error || '未知错误'), 'err');
+                        // Step 3 partial failure → show error, user can retry with "LLM重新评估"
+                        showLlmEvalStatus('err', '描述更新部分失败，请点击"LLM重新评估"重试');
+                        return null;
+                    }
+                });
+            } else {
+                addLog('⚠️ LLM 描述处理跳过', 'err');
+                showLlmEvalStatus('err', 'LLM描述处理失败，请点击"LLM重新评估"重试');
+                return null;
+            }
+        });
+    })
+    .then(function(result) {
+        if (result && result.success) {
+            addLog('✅ Test Plan 描述已更新: ' + planKey, 'ok');
+            showLlmEvalStatus('ok', '✅ Test Plan 描述已更新: ' + planKey);
+        } else if (result === null) {
+            // Step 3 failed, error already shown
+        } else if (result) {
+            addLog('❌ 更新描述失败: ' + (result.error || '未知错误'), 'err');
+            showLlmEvalStatus('err', '描述更新失败: ' + (result.error || '未知错误'));
+        }
+    })
+    .catch(function(e) {
+        addLog('❌ 更新描述失败: ' + e.message, 'err');
+        showLlmEvalStatus('err', '描述更新失败: ' + e.message);
+    });
+}
+
+function generateAndUploadDescription(tasks, planSummary, planKey) {
+    // Smart flow: check if already categorized, skip if so
+    addLog('📋 正在检查 Test Plan 状态...', 'ok');
+    showLlmEvalStatus('loading', '正在检查 Test Plan 分类状态...');
+
+    return fetch('/api/testcase/testplan/description?planKey=' + encodeURIComponent(planKey), {
+        credentials: 'same-origin',
+        headers: { 'Authorization': 'Bearer ' + authToken }
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(descData) {
+        var existingDesc = (descData.success && descData.data && descData.data.description) || '';
+        var evalMarker = 'h2. 🔍 专家评估 (LLM)';
+        var catMarker = 'h2. Test Summary';
+        var hasCategorization = existingDesc.indexOf(catMarker) !== -1;
+        var evalIdx = existingDesc.indexOf(evalMarker);
+        var existingEval = evalIdx !== -1 ? existingDesc.substring(evalIdx + evalMarker.length).trim() : '';
+        // Extract categorization part (everything before eval marker)
+        var existingCatPart = '';
+        if (hasCategorization) {
+            existingCatPart = evalIdx !== -1 ? existingDesc.substring(0, evalIdx).trim() : existingDesc.trim();
+        }
+
+        var taskMapped = tasks.map(function(t) {
+            return { key: t.key, summary: t.summary, description: t.description || '', status: t.status || '', priority: t.priority || '', parent: t.parent || '' };
+        });
+
+        // Check if existing categorization JIRA IDs match current tasks
+        var catIdsMatch = true;
+        if (hasCategorization) {
+            var currentKeys = {};
+            tasks.forEach(function(t) { currentKeys[t.key] = true; });
+            var catIdRegex = /\|?(BR200-\d+)/g;
+            var catMatch;
+            var catIds = {};
+            while ((catMatch = catIdRegex.exec(existingCatPart)) !== null) {
+                catIds[catMatch[1]] = true;
+            }
+            // Check: current tasks should all appear in categorization, and no extra stale IDs
+            var missingInCat = tasks.filter(function(t) { return !catIds[t.key]; });
+            var staleInCat = Object.keys(catIds).filter(function(k) { return !currentKeys[k]; });
+            if (missingInCat.length > 0 || staleInCat.length > 0) {
+                catIdsMatch = false;
+                addLog('⚠️ 分类中的JIRA ID与当前sub-tasks不匹配 (缺失' + missingInCat.length + '条, 过期' + staleInCat.length + '条)，需重新分类', 'err');
+            }
+        }
+
+        if (hasCategorization && catIdsMatch) {
+            // Already categorized with correct IDs → skip categorize, go directly to evaluate
+            addLog('✅ 已检测到分类信息且JIRA ID一致，跳过分类步骤，直接进行专家评估', 'ok');
+            showLlmEvalStatus('loading', '已分类，直接专家评估中...');
+            return doEvaluateOnly(taskMapped, planSummary, planKey, existingCatPart, existingEval);
+        } else {
+            // Not categorized or IDs mismatched → run categorize first, then evaluate
+            addLog(catIdsMatch ? '🤖 未检测到分类信息，开始分类...' : '🔄 分类JIRA ID已过期，重新分类...', 'ok');
+            showLlmEvalStatus('loading', 'LLM分类测试用例中...');
+            return doCategorizeThenEvaluate(taskMapped, planSummary, planKey);
+        }
+    });
+
+    function doEvaluateOnly(taskMapped, planSummary, planKey, existingCatPart, existingEval) {
+        return fetch('/api/testcase/testplan/llm-evaluate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + authToken },
+            body: JSON.stringify({
+                planKey: planKey, planSummary: planSummary, tasks: taskMapped,
+                existingEvaluation: existingEval, existingDescription: existingCatPart
+            })
+        })
+        .then(function(r) { var ct = r.headers.get('content-type'); if (ct && ct.indexOf('text/html') !== -1) throw new Error('服务器超时返回HTML'); return r.json(); })
+        .then(function(llmResult) { return buildFinalDescription(llmResult, existingCatPart, existingEval, planKey); });
+    }
+
+    function doCategorizeThenEvaluate(taskMapped, planSummary, planKey) {
+        return fetch('/api/testcase/testplan/llm-evaluate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + authToken },
+            body: JSON.stringify({ planKey: planKey, planSummary: planSummary, tasks: taskMapped, mode: 'categorize' })
+        })
+        .then(function(r) { var ct = r.headers.get('content-type'); if (ct && ct.indexOf('text/html') !== -1) throw new Error('服务器超时返回HTML'); return r.json(); })
+        .then(function(catResult) {
+            if (!catResult.success || !catResult.data || !catResult.data.description) {
+                addLog('⚠️ LLM分类失败: ' + (catResult.error || '未知原因'), 'err');
+                showLlmEvalStatus('err', 'LLM分类失败: ' + (catResult.error || '未知原因'));
+                return null;
+            }
+            addLog('✅ LLM分类完成', 'ok');
+            var desc = catResult.data.description;
+
+            // Now run evaluate
+            addLog('🤖 正在调用 LLM 专家评估...', 'ok');
+            showLlmEvalStatus('loading', 'LLM硬件专家评估 Test Plan 中...');
+            return fetch('/api/testcase/testplan/llm-evaluate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + authToken },
+                body: JSON.stringify({ planKey: planKey, planSummary: planSummary, tasks: taskMapped, existingDescription: desc })
+            })
+            .then(function(r) { var ct = r.headers.get('content-type'); if (ct && ct.indexOf('text/html') !== -1) throw new Error('服务器超时返回HTML'); return r.json(); })
+            .then(function(llmResult) { return buildFinalDescription(llmResult, desc, '', planKey); });
+        });
+    }
+
+    function buildFinalDescription(llmResult, catPart, existingEval, planKey) {
+        var desc = catPart || '';
+        var taskCount = tasks ? tasks.length : 0;
+        addLog('📋 buildFinalDescription: catPart长度=' + (catPart || '').length + ', planKey=' + planKey, 'ok');
+        if (llmResult.success && llmResult.data && llmResult.data.evaluation) {
+            var rawEval = llmResult.data.evaluation;
+            addLog('✅ LLM 专家评估完成，原始评估长度=' + rawEval.length + '，正在更新 JIRA...', 'ok');
+            showLlmEvalStatus('loading', '正在将评估结果写入 JIRA...');
+            var evalText = rawEval;
+            evalText = evalText.replace(/h3\.\s*分类复盘[：:]?[\s\S]*?(?=\nh3\.|$)/g, '').trim();
+            evalText = evalText.replace(/分类复盘[：:][\s\S]*?(?=\nh3\.|$)/g, '').trim();
+            addLog('📋 去除分类复盘后评估长度=' + evalText.length, 'ok');
+            if (evalText) {
+                desc += 'h2. 🔍 专家评估 (LLM)\n\n' + evalText + '\n\n';
+            } else {
+                addLog('⚠️ 评估文本去除分类复盘后为空，不追加评估', 'err');
+            }
+        } else {
+            addLog('⚠️ LLM 评估失败: ' + (llmResult.error || '未知原因') + '，保留已有评估', 'err');
+            if (existingEval) {
+                desc += 'h2. 🔍 专家评估 (LLM)\n\n' + existingEval + '\n\n';
+                addLog('♻️ 已恢复之前的专家评估内容', 'ok');
+            }
+        }
+
+        addLog('📋 即将写入JIRA的描述总长度=' + desc.length + ', 包含评估=' + (desc.indexOf('专家评估') !== -1), 'ok');
+        return fetch('/api/testcase/testplan/description', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + authToken },
+            body: JSON.stringify({ planKey: planKey, description: desc })
+        }).then(function(r) { return r.json(); }).then(function(putResult) {
+            // Only show success AFTER PUT succeeds
+            if (putResult && putResult.success !== false) {
+                addLog('✅ JIRA描述更新成功，总长度=' + desc.length, 'ok');
+                showLlmEvalStatus('ok', taskCount + '条测试用例描述增强成功，测试方案LLM专家评估完成');
+            } else {
+                addLog('❌ JIRA描述更新失败: ' + (putResult.error || '请检查权限'), 'err');
+                showLlmEvalStatus('err', 'JIRA描述更新失败: ' + (putResult.error || '请检查权限'));
+            }
+            return putResult;
+        });
+    }
+}
+
+function regeneratePlanDescription(skipStep3) {
+    // Support both browse tab and upload tab
+    var planKey = '';
+    var isUploadTab = false;
+    if (typeof uploadSelectedPlanKey !== 'undefined' && uploadSelectedPlanKey) {
+        planKey = uploadSelectedPlanKey;
+        isUploadTab = true;
+    } else if (typeof selectedParent !== 'undefined' && selectedParent && selectedParent.key) {
+        planKey = selectedParent.key;
+    }
+
+    if (!planKey) {
+        alert('请先选择一个 Test Plan');
+        return;
+    }
+
+    var btn = document.getElementById('btn-regen-desc');
+    var ubcBtn = document.getElementById('ubc-regen-desc');
+    var statusEl = document.getElementById('regen-desc-status');
+    var ubcStatus = document.getElementById('ubc-regen-status');
+    var startTime = Date.now();
+
+    function updateStatus(text, color) {
+        if (statusEl) { statusEl.textContent = text; statusEl.style.color = color; }
+        if (ubcStatus) {
+            ubcStatus.style.display = 'inline';
+            ubcStatus.textContent = text;
+            ubcStatus.style.color = color;
+        }
+    }
+
+    if (btn) { btn.disabled = true; btn.textContent = '⏳ 评估中...'; }
+    if (ubcBtn) { ubcBtn.disabled = true; ubcBtn.textContent = '⏳ 评估中...'; }
+    updateStatus('⏳ 正在评估中...', '#2563eb');
+
+    // Clear progress log
+    var logEl = document.getElementById('progress-log');
+    if (logEl) logEl.innerHTML = '';
+
+    if (skipStep3) {
+        // "LLM重新评估" - only do Step 4 (expert evaluation)
+        // Descriptions already enhanced, just re-evaluate the plan
+        reEvalPlanDescription(planKey, startTime, btn, ubcBtn, updateStatus);
+    } else {
+        // Full flow: Step 3 (description enhance) + Step 4 (expert eval)
+        updatePlanDescription(planKey, false);
+    }
+
+    // Monitor completion via a simple polling (max 10 minutes)
+    var checkCount = 0;
+    var checkInterval = setInterval(function() {
+        checkCount++;
+        var logEl = document.getElementById('progress-log');
+        if (logEl) {
+            var logs = logEl.textContent;
+            var elapsed = window._llmActualStartTime ? ((Date.now() - window._llmActualStartTime) / 1000).toFixed(0) : null;
+            if (logs.indexOf('✅ LLM 专家评估完成，正在更新 JIRA...') !== -1 && logs.indexOf('✅ Test Plan 描述已更新: ' + planKey) !== -1) {
+                clearInterval(checkInterval);
+                if (btn) { btn.disabled = false; btn.textContent = '🧠 LLM 评估 Test Plan'; }
+                if (ubcBtn) { ubcBtn.disabled = false; ubcBtn.textContent = '🧠 LLM重新评估'; }
+                updateStatus('✅ 评估完成，耗时 ' + (elapsed || '?') + ' 秒', '#16a34a');
+            } else if (logs.indexOf('更新描述失败') !== -1) {
+                clearInterval(checkInterval);
+                if (btn) { btn.disabled = false; btn.textContent = '🧠 LLM 评估 Test Plan'; }
+                if (ubcBtn) { ubcBtn.disabled = false; ubcBtn.textContent = '🧠 LLM重新评估'; }
+                updateStatus('❌ 生成失败，请重试 (耗时 ' + (elapsed || '?') + ' 秒)', '#dc2626');
+            } else if (checkCount > 600) {
+                clearInterval(checkInterval);
+                if (btn) { btn.disabled = false; btn.textContent = '🧠 LLM 评估 Test Plan'; }
+                if (ubcBtn) { ubcBtn.disabled = false; ubcBtn.textContent = '🧠 LLM重新评估'; }
+                updateStatus('⚠️ 超时 (已等待 ' + (elapsed || '?') + ' 秒)，请检查日志', '#d97706');
+            } else {
+                updateStatus(elapsed ? '⏳ 评估中...已等待 ' + elapsed + ' 秒' : '⏳ 等待LLM响应...', '#2563eb');
+            }
+        }
+    }, 1000);
+}
+
+function downloadTemplate() {
+    window.location.href = '/api/testcase/template';
+}
+
+// ============ Create Test Cases Dialog ============
+function showCreateTestCasesDialog() {
+    if (!uploadSelectedPlanKey) { alert('请先选择一个 Test Plan'); return; }
+    document.getElementById('create-tc-modal').style.display = 'flex';
+    document.getElementById('tc-dialog-assignee').value = '';
+    document.getElementById('tc-dialog-assignee').focus();
+    
+    // Load components from JIRA
+    var projectKey = document.getElementById('tc-project').value;
+    var compSelect = document.getElementById('tc-dialog-component');
+    compSelect.innerHTML = '<option value="">加载中...</option>';
+    
+    fetch('/api/testcase/projects', {
+        credentials: 'same-origin',
+        headers: authToken ? { 'Authorization': 'Bearer ' + authToken } : {}
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        // Find current project's components via search
+        return fetch('/api/testcase/search?project=' + projectKey + '&maxResults=1', {
+            credentials: 'same-origin',
+            headers: authToken ? { 'Authorization': 'Bearer ' + authToken } : {}
+        });
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        // Get unique components from all issues
+        var compSet = {};
+        if (data.success && data.data && data.data.issues) {
+            data.data.issues.forEach(function(issue) {
+                if (issue.components && issue.components.length > 0) {
+                    issue.components.forEach(function(c) { compSet[c] = true; });
+                }
+            });
+        }
+        // Fetch all project components from JIRA
+        return fetch('/api/testcase/components?project=' + projectKey, {
+            credentials: 'same-origin',
+            headers: authToken ? { 'Authorization': 'Bearer ' + authToken } : {}
+        }).then(function(r) { return r.json(); }).then(function(compData) {
+            if (compData.success && compData.data && compData.data.components) {
+                compData.data.components.forEach(function(c) { compSet[c] = true; });
+            }
+            return compSet;
+        });
+    })
+    .then(function(compSet) {
+        compSelect.innerHTML = '<option value="">-- 选择组件 --</option>';
+        Object.keys(compSet).sort().forEach(function(c) {
+            compSelect.innerHTML += '<option value="' + c + '">' + c + '</option>';
+        });
+    })
+    .catch(function() {
+        compSelect.innerHTML = '<option value="">-- 选择组件 --</option>';
+    });
+}
+
+function closeCreateTestCasesDialog() {
+    document.getElementById('create-tc-modal').style.display = 'none';
+}
+
+// ============ Create Sub Test Plan Dialog ============
+function showCreateSubTestPlanDialog() {
+    if (!uploadSelectedPlanKey) { alert('请先选择一个 Test Plan'); return; }
+    document.getElementById('create-stp-modal').style.display = 'flex';
+    document.getElementById('stp-dialog-assignee').value = '';
+    document.getElementById('stp-dialog-assignee').focus();
+    
+    // Load components from JIRA
+    var projectKey = document.getElementById('tc-project').value;
+    var compSelect = document.getElementById('stp-dialog-component');
+    compSelect.innerHTML = '<option value="">加载中...</option>';
+    
+    fetch('/api/testcase/components?project=' + encodeURIComponent(projectKey), {
+        credentials: 'same-origin',
+        headers: authToken ? { 'Authorization': 'Bearer ' + authToken } : {}
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        compSelect.innerHTML = '<option value="">-- 选择组件 --</option>';
+        if (data.success && data.data && data.data.components) {
+            data.data.components.sort().forEach(function(c) {
+                compSelect.innerHTML += '<option value="' + c + '">' + c + '</option>';
+            });
+        }
+    })
+    .catch(function() {
+        compSelect.innerHTML = '<option value="">-- 选择组件 --</option>';
+    });
+}
+
+function closeCreateSubTestPlanDialog() {
+    document.getElementById('create-stp-modal').style.display = 'none';
+}
+
+function confirmCreateSubTestPlan() {
+    var assignee = document.getElementById('stp-dialog-assignee').value.trim();
+    var component = document.getElementById('stp-dialog-component').value.trim();
+    
+    if (!assignee) {
+        alert('请填写负责人');
+        return;
+    }
+    
+    // Store in global for paste path to use
+    _dialogAssignee = assignee;
+    _dialogComponent = component;
+    
+    // Search JIRA for user match
+    var project = document.getElementById('tc-project').value || 'BR200';
+    fetch('/api/testcase/search-user?name=' + encodeURIComponent(assignee), {
+        credentials: 'same-origin',
+        headers: authToken ? { 'Authorization': 'Bearer ' + authToken } : {}
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        var matchedAssignee = assignee;
+        if (data.success && data.data && data.data.bestMatch) {
+            matchedAssignee = data.data.bestMatch.name || data.data.bestMatch.displayName || assignee;
+        }
+        
+        var cmd = '负责人为' + matchedAssignee;
+        if (component) {
+            cmd += ',组件为' + component;
+        }
+        
+        closeCreateSubTestPlanDialog();
+        fillCommand(cmd);
+    })
+    .catch(function() {
+        var cmd = '负责人为' + assignee;
+        if (component) {
+            cmd += ',组件为' + component;
+        }
+        closeCreateSubTestPlanDialog();
+        fillCommand(cmd);
+    });
+}
+
+function confirmCreateTestCases() {
+    var assignee = document.getElementById('tc-dialog-assignee').value.trim();
+    var component = document.getElementById('tc-dialog-component').value.trim();
+    
+    if (!assignee) {
+        alert('请填写负责人');
+        return;
+    }
+    
+    var cmd = '在当前Test Plan下创建测试用例,负责人为' + assignee;
+    if (component) {
+        cmd += ',组件为' + component;
+    }
+    
+    console.log('[DEBUG] confirmCreateTestCases: assignee=' + assignee + ', component=' + component + ', cmd=' + cmd);
+    // Search JIRA for user match
+    var project = document.getElementById('tc-project').value || 'BR200';
+    fetch('/api/testcase/search-user?name=' + encodeURIComponent(assignee), {
+        credentials: 'same-origin',
+        headers: authToken ? { 'Authorization': 'Bearer ' + authToken } : {}
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        var matchedAssignee = assignee;
+        if (data.success && data.data && data.data.bestMatch) {
+            // Use JIRA username (name) for better matching, fallback to displayName
+            matchedAssignee = data.data.bestMatch.name || data.data.bestMatch.displayName || assignee;
+        }
+        
+        // Store matched assignee and component globally
+        _dialogAssignee = matchedAssignee;
+        _dialogComponent = component;
+        console.log('[DEBUG] confirmCreateTestCases: matchedAssignee=' + matchedAssignee + ', component=' + component + ', _dialogComponent=' + _dialogComponent);
+        
+        closeCreateTestCasesDialog();
+        fillCommand('在当前Test Plan下创建测试用例,负责人为' + matchedAssignee + (component ? ',组件为' + component : ''));
+    })
+    .catch(function() {
+        // Fallback: use original assignee
+        _dialogAssignee = assignee;
+        _dialogComponent = component;
+        closeCreateTestCasesDialog();
+        fillCommand(cmd);
+    });
+}
+
+
+// ============ JIRA User Search ============
+function searchJiraUser(name, callback) {
+    if (!name || name.match(/^E\d+$/)) {
+        callback(name);
+        return;
+    }
+    fetch('/api/testcase/search?project=' + (document.getElementById('tc-project').value || 'BR200') + '&query=' + encodeURIComponent(name) + '&maxResults=1', {
+        credentials: 'same-origin',
+        headers: authToken ? { 'Authorization': 'Bearer ' + authToken } : {}
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        // Search for user via a simple approach - use the search endpoint with assignee filter
+        return fetch('/api/testcase/search?project=' + (document.getElementById('tc-project').value || 'BR200') + '&maxResults=1', {
+            credentials: 'same-origin',
+            headers: authToken ? { 'Authorization': 'Bearer ' + authToken } : {}
+        });
+    })
+    .then(function(r) { return r.json(); })
+    .then(function() {
+        // Just return the original name for now - backend will handle matching
+        callback(name);
+    })
+    .catch(function() {
+        callback(name);
+    });
+}
+
+
+// ============ Step 4 Only: Expert Evaluation ============
+function reEvalPlanDescription(planKey, startTime, btn, ubcBtn, updateStatus) {
+    addLog('🧠 开始 LLM 专家评估 Test Plan: ' + planKey, 'ok');
+    showLlmEvalStatus('loading', '正在获取 Test Plan 信息...');
+
+    // Step 1: Get sub-tasks (always fresh, no cache)
+    fetch('/api/testcase/testplan/linked-tasks/' + planKey + '?_t=' + Date.now(), {
+        credentials: 'same-origin',
+        headers: { 'Authorization': 'Bearer ' + authToken }
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (!data.success || !data.data) throw new Error(data.error || '加载sub-tasks失败');
+        var allTasks = data.data.tasks || [];
+        var directTasks = data.data.directTasks || [];
+        var tasks = directTasks.length > 0 ? directTasks : allTasks.filter(function(t) { return t.parent === planKey; });
+        var planSummary = data.data.planSummary || planKey;
+        addLog('📋 获取到 ' + tasks.length + ' 条直接 sub-tasks', 'ok');
+
+        var taskMapped = tasks.map(function(t) {
+            return { key: t.key, summary: t.summary, description: t.description || '', status: t.status || '', priority: t.priority || '', parent: t.parent || '' };
+        });
+
+        return { tasks: tasks, taskMapped: taskMapped, planSummary: planSummary };
+    })
+    .then(function(context) {
+        if (!context) return null;
+        window._llmActualStartTime = Date.now();
+
+        // Step 2: Always re-categorize with fresh task data
+        addLog('🤖 正在重新分类 ' + context.tasks.length + ' 条用例...', 'ok');
+        showLlmEvalStatus('loading', 'LLM 分类测试用例中... (' + context.tasks.length + ' 条)');
+        return fetch('/api/testcase/testplan/llm-evaluate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + authToken },
+            body: JSON.stringify({ planKey: planKey, planSummary: context.planSummary, tasks: context.taskMapped, mode: 'categorize' })
+        }).then(function(r) {
+            var ct = r.headers.get('content-type');
+            if (ct && ct.indexOf('text/html') !== -1) throw new Error('服务器超时返回HTML，请重试');
+            return r.json();
+        }).then(function(catResult) {
+            if (!catResult.success || !catResult.data || !catResult.data.description) {
+                addLog('⚠️ LLM分类失败: ' + (catResult.error || '未知原因'), 'err');
+                throw new Error('分类失败: ' + (catResult.error || '未知原因'));
+            }
+            addLog('✅ LLM分类完成，长度=' + catResult.data.description.length, 'ok');
+            context.catDesc = catResult.data.description;
+
+            // Step 3: Call LLM evaluate with new categorization
+            addLog('🤖 正在调用 LLM 专家评估...', 'ok');
+            showLlmEvalStatus('loading', 'LLM 专家评估中... (' + context.tasks.length + ' 条用例)');
+            return fetch('/api/testcase/testplan/llm-evaluate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + authToken },
+                body: JSON.stringify({
+                    planKey: planKey,
+                    planSummary: context.planSummary,
+                    tasks: context.taskMapped,
+                    existingEvaluation: '',
+                    existingDescription: context.catDesc
+                })
+            }).then(function(r) {
+                var ct = r.headers.get('content-type');
+                if (ct && ct.indexOf('text/html') !== -1) throw new Error('服务器超时返回HTML，请重试');
+                return r.json();
+            }).then(function(llmResult) {
+                // Step 4: Build final description with NEW categorization + new evaluation
+                var desc = context.catDesc || '';
+                if (llmResult.success && llmResult.data && llmResult.data.evaluation) {
+                    var rawEval = llmResult.data.evaluation;
+                    addLog('✅ LLM 评估完成，原始长度=' + rawEval.length, 'ok');
+                    var evalText = rawEval;
+                    evalText = evalText.replace(/h3\.\s*分类复盘[：:]?[\s\S]*?(?=\nh3\.|$)/g, '').trim();
+                    evalText = evalText.replace(/分类复盘[：:][\s\S]*?(?=\nh3\.|$)/g, '').trim();
+                    addLog('📋 去除分类复盘后长度=' + evalText.length, 'ok');
+                    if (evalText) {
+                        desc += 'h2. 🔍 专家评估 (LLM)\n\n' + evalText + '\n\n';
+                    }
+                    showLlmEvalStatus('loading', '正在写入 JIRA...');
+                } else {
+                    addLog('⚠️ LLM 评估失败: ' + (llmResult.error || '未知原因'), 'err');
+                }
+
+                addLog('📋 写入JIRA: 描述总长度=' + desc.length + ', 包含评估=' + (desc.indexOf('专家评估') !== -1), 'ok');
+
+                // Step 5: PUT to JIRA
+                return fetch('/api/testcase/testplan/description', {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + authToken },
+                    body: JSON.stringify({ planKey: planKey, description: desc })
+                }).then(function(r) { return r.json(); }).then(function(putResult) {
+                    var elapsed = ((Date.now() - startTime) / 1000).toFixed(0);
+                    if (putResult && putResult.success !== false) {
+                        addLog('✅ JIRA 描述更新成功，长度=' + desc.length, 'ok');
+                        showLlmEvalStatus('ok', taskCount(context.tasks) + '条测试用例分类+评估完成 (耗时' + elapsed + '秒)');
+                        if (btn) { btn.disabled = false; btn.textContent = '🧠 LLM 评估 Test Plan'; }
+                        if (ubcBtn) { ubcBtn.disabled = false; ubcBtn.textContent = '🧠 LLM重新评估'; }
+                        if (updateStatus) updateStatus('✅ 完成，耗时 ' + elapsed + ' 秒', '#16a34a');
+                    } else {
+                    addLog('❌ JIRA 更新失败: ' + (putResult.error || '未知错误'), 'err');
+                    showLlmEvalStatus('err', 'JIRA更新失败: ' + (putResult.error || '请检查权限'));
+                    if (btn) { btn.disabled = false; btn.textContent = '🧠 LLM 评估 Test Plan'; }
+                    if (ubcBtn) { ubcBtn.disabled = false; ubcBtn.textContent = '🧠 LLM重新评估'; }
+                    if (updateStatus) updateStatus('❌ 更新失败', '#dc2626');
+                }
+            });
+        });
+    })
+    })
+    .catch(function(e) {
+        var elapsed = ((Date.now() - startTime) / 1000).toFixed(0);
+        addLog('❌ 评估失败: ' + e.message, 'err');
+        showLlmEvalStatus('err', '评估失败: ' + e.message + ' (耗时' + elapsed + '秒)');
+        if (btn) { btn.disabled = false; btn.textContent = '🧠 LLM 评估 Test Plan'; }
+        if (ubcBtn) { ubcBtn.disabled = false; ubcBtn.textContent = '🧠 LLM重新评估'; }
+        if (updateStatus) updateStatus('❌ 失败', '#dc2626');
+    });
+}
+
+function taskCount(tasks) { return tasks ? tasks.length : 0; }
+
+// ============ Date Setting Modal ============
+function showDateModal() {
+    if (!selectedParent) { alert('请先选择一个 Test Plan'); return; }
+    document.getElementById('date-modal').style.display = 'flex';
+    document.getElementById('date-modal-status').style.display = 'none';
+    document.getElementById('btn-save-dates').disabled = false;
+    // Pre-fill with existing dates if available
+    if (selectedParent.startDate) {
+        document.getElementById('date-actual-start').value = selectedParent.startDate;
+    }
+    if (selectedParent.endDate) {
+        document.getElementById('date-actual-end').value = selectedParent.endDate;
+    }
+}
+
+function closeDateModal() {
+    document.getElementById('date-modal').style.display = 'none';
+}
+
+function saveDates() {
+    var startDate = document.getElementById('date-actual-start').value;
+    var endDate = document.getElementById('date-actual-end').value;
+    var statusEl = document.getElementById('date-modal-status');
+    var btn = document.getElementById('btn-save-dates');
+
+    // Allow closing without setting dates
+    if (!startDate && !endDate) {
+        closeDateModal();
+        return;
+    }
+
+    btn.disabled = true;
+    btn.textContent = '⏳ 保存中...';
+    statusEl.style.display = 'block';
+    statusEl.style.color = '#2563eb';
+    statusEl.textContent = '正在保存到 JIRA...';
+
+    // Collect all issue keys: parent + linked sub-tasks + sub-tasks of linked plans
+    var keys = [selectedParent.key];
+    if (linkedPlans && linkedPlans.length > 0) {
+        linkedPlans.forEach(function(p) { keys.push(p.key); });
+    }
+    
+    // Also fetch sub-tasks of each linked plan using search API
+    var fetchPromises = [];
+    if (linkedPlans && linkedPlans.length > 0) {
+        linkedPlans.forEach(function(p) {
+            fetchPromises.push(
+                fetch('/api/testcase/search?project=' + selectedParent.key.replace(/-.*/, '') + '&parent=' + p.key + '&maxResults=100', {
+                    credentials: 'same-origin',
+                    headers: authToken ? { 'Authorization': 'Bearer ' + authToken } : {}
+                })
+                .then(function(r) { return r.json(); })
+                .then(function(data) {
+                    if (data.success && data.data && data.data.issues) {
+                        data.data.issues.forEach(function(issue) {
+                            if (keys.indexOf(issue.key) === -1) keys.push(issue.key);
+                        });
+                    }
+                })
+                .catch(function() {})
+            );
+        });
+    }
+    
+    Promise.all(fetchPromises).then(function() {
+        return fetch('/api/testcase/batch-update-dates', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': 'Bearer ' + authToken
+            },
+            body: JSON.stringify({
+                keys: keys,
+                actualStartDate: startDate || null,
+                actualEndDate: endDate || null
+            })
+        });
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (data.success) {
+            statusEl.style.color = '#16a34a';
+            statusEl.textContent = '✅ 已更新 ' + data.data.ok + ' 个 issue 的日期';
+            // Update local state
+            if (startDate) selectedParent.startDate = startDate;
+            if (endDate) selectedParent.endDate = endDate;
+            setTimeout(closeDateModal, 1500);
+        } else {
+            statusEl.style.color = '#dc2626';
+            statusEl.textContent = '❌ ' + (data.error || '保存失败');
+            btn.disabled = false;
+            btn.textContent = '💾 保存';
+        }
+    })
+    .catch(function(e) {
+        statusEl.style.color = '#dc2626';
+        statusEl.textContent = '❌ 网络错误: ' + e.message;
+        btn.disabled = false;
+        btn.textContent = '💾 保存';
+    });
+}
+
+// Toast通知函数
+function showToast(message, type) {
+    // 移除已存在的toast
+    var existing = document.getElementById('llm-toast');
+    if (existing) existing.remove();
+    
+    var toast = document.createElement('div');
+    toast.id = 'llm-toast';
+    toast.style.cssText = 'position:fixed; top:20px; right:20px; z-index:9999; padding:16px 24px; border-radius:8px; font-size:14px; font-weight:600; box-shadow:0 4px 12px rgba(0,0,0,0.15); display:flex; align-items:center; gap:10px; animation:slideIn 0.3s ease; max-width:400px;';
+    
+    if (type === 'success') {
+        toast.style.background = '#f0fdf4';
+        toast.style.color = '#16a34a';
+        toast.style.border = '2px solid #16a34a';
+    } else if (type === 'error') {
+        toast.style.background = '#fef2f2';
+        toast.style.color = '#dc2626';
+        toast.style.border = '2px solid #dc2626';
+    } else if (type === 'loading') {
+        toast.style.background = '#eff6ff';
+        toast.style.color = '#2563eb';
+        toast.style.border = '2px solid #2563eb';
+    }
+    
+    toast.innerHTML = message;
+    document.body.appendChild(toast);
+    
+    // 3秒后自动消失
+    setTimeout(function() {
+        toast.style.opacity = '0';
+        toast.style.transition = 'opacity 0.3s ease';
+        setTimeout(function() { toast.remove(); }, 300);
+    }, 3000);
+}
+
+function escapeHtml(text) {
+    var div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+// ============ Init ============
+checkAuth();
