@@ -17,17 +17,17 @@ router.get('/', (req, res) => {
     WHERE r.platform_id=? AND r.status='active'
   `);
   const getAllocTeams = db.prepare(`
-    SELECT sa.team_id, t.display_name as team_name, t.color as team_color, sa.slot_mode, sa.priority
-    FROM stage_allocations sa
-    JOIN teams t ON t.id = sa.team_id
-    WHERE sa.stage_id=? AND sa.platforms LIKE ?
-  `);
+      SELECT DISTINCT da.team_id, t.display_name as team_name, t.color as team_color
+      FROM day_allocations da
+      JOIN teams t ON t.id = da.team_id
+      WHERE da.platform_id=? AND da.stage_id=?
+    `);
 
   const result = platforms.map(p => {
     const activeTeams = getActiveTeams.all(p.id);
 
     // 查找当前阶段哪些团队分配了此平台
-    const allocTeams = getAllocTeams.all(currentStage, `%${p.id}%`);
+    const allocTeams = getAllocTeams.all(p.id, currentStage);
 
     return {
       ...p,

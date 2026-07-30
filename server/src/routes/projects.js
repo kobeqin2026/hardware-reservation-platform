@@ -43,7 +43,7 @@ router.post('/copy', (req, res) => {
   for (const p of sourcePlats) {
     const dup = db.prepare('SELECT id FROM platforms WHERE project=? AND label=?').get(toProject, p.label);
     if (dup) continue;
-    // 使用 label 作为新ID（例如 BR200-Socket1），保证唯一性
+    // 使用 label 作为新ID（例如 BU1），保证唯一性
     const newId = `${toProject}-${p.label}`;
     idMap[p.id] = newId;
     insert.run(newId, p.label, toProject, 'idle', p.location || '', p.config_json || '{}');

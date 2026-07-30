@@ -50,4 +50,55 @@ router.get('/stage-overview', (req, res) => {
   res.json({ stageId: currentStage, allocations: rows });
 });
 
+// 更新团队预分配（管理员）—— 设置某团队在当前stage的平台和优先级
+router.put('/allocate', (req, res) => {
+  const { teamId, stageId, platforms, priority } = req.body;
+  if (!teamId) return res.status(400).json({ error: 'teamId required' });
+
+  const db = getDB();
+  const team = db.prepare('SELECT * FROM teams WHERE id=?').get(teamId);
+  if (!team) return res.status(404).json({ error: 'Team not found' });
+
+  const stage = stageId || db.prepare("SELECT value FROM system_config WHERE key='current_stage'").get()?.value || 'BU';
+
+  const existing = db.prepare('SELECT * FROM stage_allocations WHERE stage_id=? AND team_id=?').get(stage, teamId);
+  if (existing) {
+    db.prepare('UPDATE stage_allocations SET platforms=?, priority=?, slot_mode=? WHERE id=?')
+      .run(platforms || '', priority !== undefined ? priority : existing.priority, existing.slot_mode, existing.id);
+  } else {
+    db.prepare('INSERT INTO stage_allocations (stage_id, team_id, platforms, slot_mode, priority) VALUES (?,?,?,?,?)')
+      .run(stage, teamId, platforms || '', 'shared', priority !== undefined ? priority : 1);
+  }
+
+  res.json({ success: true, message: `${team.display_name} allocation updated` });
+});
+
+// 获取某天的逐格分配
+router.get('/day-allocations', (req, res) => {
+  const db = getDB();
+  const rows = db.prepare("SELECT * FROM day_allocations WHERE stage_id='BU'").all();
+  res.json(rows);
+});
+
+// 保存/更新某格的分配
+router.put('/day-allocate', (req, res) => {
+  const { platformId, dateStamp, teamId } = req.body;
+  if (!platformId || !dateStamp || !teamId) return res.status(400).json({ error: 'platformId, dateStamp, teamId required' });
+  const db = getDB();
+  db.prepare(`
+    INSERT INTO day_allocations (platform_id, date_stamp, team_id) VALUES (?,?,?)
+    ON CONFLICT(platform_id, date_stamp, stage_id) DO UPDATE SET team_id=excluded.team_id, updated_at=CURRENT_TIMESTAMP
+  `).run(platformId, dateStamp, teamId);
+  res.json({ success: true });
+});
+
+// 清除某格的分配
+router.delete('/day-allocate', (req, res) => {
+  const { platformId, dateStamp } = req.body;
+  if (!platformId || !dateStamp) return res.status(400).json({ error: 'platformId, dateStamp required' });
+  const db = getDB();
+  db.prepare("DELETE FROM day_allocations WHERE platform_id=? AND date_stamp=? AND stage_id='BU'").run(platformId, dateStamp);
+  res.json({ success: true });
+});
+
 module.exports = router;

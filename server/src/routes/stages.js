@@ -2,17 +2,19 @@ const express = require('express');
 const router = express.Router();
 const { getDB } = require('../models/database');
 
-// 获取所有阶段
+// 获取所有阶段（含bringup日期范围）
 router.get('/', (req, res) => {
   const db = getDB();
   const stages = db.prepare('SELECT * FROM stages ORDER BY sort_order').all();
   const current = db.prepare("SELECT value FROM system_config WHERE key='current_stage'").get();
-  res.json({ stages, currentStage: current?.value || 'BU' });
+  const bringupStart = db.prepare("SELECT value FROM system_config WHERE key='bringup_start'").get()?.value || '09-28';
+  const bringupEnd = db.prepare("SELECT value FROM system_config WHERE key='bringup_end'").get()?.value || '10-11';
+  res.json({ stages, currentStage: current?.value || 'BU', bringupStart, bringupEnd });
 });
 
 // 更新阶段信息（时间范围等）
 router.put('/:id', (req, res) => {
-  const { start_week, end_week, duration_weeks, name, color } = req.body;
+  const { start_week, end_week, duration_weeks, name, color, bringupStart, bringupEnd } = req.body;
   const db = getDB();
   const stage = db.prepare('SELECT * FROM stages WHERE id=?').get(req.params.id);
   if (!stage) return res.status(404).json({ error: 'Stage not found' });
@@ -33,6 +35,14 @@ router.put('/:id', (req, res) => {
     color ?? stage.color,
     req.params.id
   );
+
+  // 同时写入 bringup 日期范围
+  if (bringupStart !== undefined) {
+    db.prepare("INSERT OR REPLACE INTO system_config (key, value) VALUES ('bringup_start', ?)").run(bringupStart);
+  }
+  if (bringupEnd !== undefined) {
+    db.prepare("INSERT OR REPLACE INTO system_config (key, value) VALUES ('bringup_end', ?)").run(bringupEnd);
+  }
 
   res.json({ success: true });
 });
