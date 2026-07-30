@@ -2,34 +2,6 @@
 
 ## 版本历史
 
-### v0.5.0 — 硬件资源预约平台 初始版本
-
-Bringup FE + FST + PVT 阶段团队-平台分配管理。
-
-#### 功能
-- 阶段规划 Gantt 图（按周显示 FE/FST/PVT 各阶段团队分配）
-- 平台列表 CRUD：平台创建、编辑配置（IP/位置/主板）、删除
-- 团队管理：定义团队名称、颜色、负责人
-- 用户管理：创建登录用户，支持 admin / team 角色
-- 预约管理：预约/归还平台，状态自动切换
-- Dashboard 总览：平台占用统计、各阶段进展
-- 芯片信息管理：为每个平台添加/编辑/删除芯片
-- 登录验证：基于 localStorage 的用户认证
-
-#### 技术栈
-- 前端：Vue 3 + Element Plus
-- 后端：Express + better-sqlite3
-- 数据库：SQLite
-
-#### 页面结构
-- Dashboard.vue — 总览看板
-- PlatformView.vue — 平台列表（含新建/编辑/删除/预约）
-- TeamView.vue — 团队分配表单（切换阶段 + 粗粒度团队→平台勾选）
-- ChipInfo.vue — 芯片信息列表
-- GanttView.vue — 阶段规划甘特图
-
----
-
 ### v1.0.0 — BR2xx Bringup 平台分配管理 (2026-07-30)
 
 在 v0.5.0 基础上，针对 **BU 阶段** 的 14 天团队-平台矩阵进行重构。
@@ -71,6 +43,34 @@ Bringup FE + FST + PVT 阶段团队-平台分配管理。
 
 **Bug 修复**
 - SQL `LIKE '%BU1%'` 误匹配 BU10/BU11 等问题 → 改为 `','||platforms||',' LIKE '%,BU1,%'`
+
+---
+
+### v0.5.0 — 硬件资源预约平台 初始版本 (2025-08-15)
+
+Bringup FE + FST + PVT 阶段团队-平台分配管理。
+
+#### 功能
+- 阶段规划 Gantt 图（按周显示 FE/FST/PVT 各阶段团队分配）
+- 平台列表 CRUD：平台创建、编辑配置（IP/位置/主板）、删除
+- 团队管理：定义团队名称、颜色、负责人
+- 用户管理：创建登录用户，支持 admin / team 角色
+- 预约管理：预约/归还平台，状态自动切换
+- Dashboard 总览：平台占用统计、各阶段进展
+- 芯片信息管理：为每个平台添加/编辑/删除芯片
+- 登录验证：基于 localStorage 的用户认证
+
+#### 技术栈
+- 前端：Vue 3 + Element Plus
+- 后端：Express + better-sqlite3
+- 数据库：SQLite
+
+#### 页面结构
+- Dashboard.vue — 总览看板
+- PlatformView.vue — 平台列表（含新建/编辑/删除/预约）
+- TeamView.vue — 团队分配表单（切换阶段 + 粗粒度团队→平台勾选）
+- ChipInfo.vue — 芯片信息列表
+- GanttView.vue — 阶段规划甘特图
 
 ---
 
