@@ -60,6 +60,12 @@ Bringup FE + FST + PVT 阶段团队-平台分配管理。
 - 芯片信息管理：为每个平台添加/编辑/删除芯片
 - 登录验证：基于 localStorage 的用户认证
 
+#### 状态颜色区分
+- **Dashboard 阶段卡片**：BU（红）、FE（黄）、FST（蓝）、PVT（绿）
+- **平台状态**：空闲（success 绿）、使用中（warning 橙）、维护中（danger 红）
+- **预约状态**：活跃中（warning 橙）、已完成（info 灰）
+- **角色标签**：管理员（danger 红）、Domain Owner（success 绿）
+
 #### 技术栈
 - 前端：Vue 3 + Element Plus
 - 后端：Express + better-sqlite3
