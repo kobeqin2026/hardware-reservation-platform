@@ -35,7 +35,7 @@
     <el-card shadow="never">
       <template #header>
         <div style="display:flex;align-items:center;justify-content:space-between;">
-          <span style="font-weight:600;">Socket 平台状态</span>
+          <span style="font-weight:600;">BU 平台状态</span>
           <div style="display:flex;gap:12px;align-items:center;">
             <span style="font-size:12px;color:#999;">
               <span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#67C23A;margin-right:4px;"></span>空闲
@@ -261,8 +261,8 @@ const projectPlatforms = computed(() => {
   return platforms.value
     .filter(p => (p.project || 'BR2x6') === currentProject.value)
     .sort((a, b) => {
-      const na = parseInt((a.label || a.id || '').replace(/.*?Socket/gi, '').replace(/[^0-9]/g, '') || '0', 10)
-      const nb = parseInt((b.label || b.id || '').replace(/.*?Socket/gi, '').replace(/[^0-9]/g, '') || '0', 10)
+      const na = parseInt((a.label || a.id || '').replace(/.*?BU/gi, '').replace(/[^0-9]/g, '') || '0', 10)
+      const nb = parseInt((b.label || b.id || '').replace(/.*?BU/gi, '').replace(/[^0-9]/g, '') || '0', 10)
       return na - nb
     })
 })

@@ -61,8 +61,8 @@ export function updatePlatformStatus(id, status, detail) {
   return api.patch(`/platforms/${id}/status`, { status, detail })
 }
 
-export function updatePlatformConfig(id, config) {
-  return api.patch(`/platforms/${id}/config`, { config })
+export function updatePlatformConfig(id, config, location) {
+  return api.patch(`/platforms/${id}/config`, { config, location })
 }
 
 export function allocatePlatformTeams(id, teamIds) {

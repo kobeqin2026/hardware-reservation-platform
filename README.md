@@ -1,175 +1,100 @@
-# Hardware Reservation Platform (硬件资源预约平台)
+# 硬件资源预约平台 (Hardware Reservation Platform)
 
-**版本**: v0.5  
-**技术栈**: Vue 3 + Element Plus + Express + SQLite  
-**描述**: 面向芯片/硬件测试团队的硬件资源平台资源预约、分配与管理平台。
+Bringup BU 阶段 14 天团队-平台分配管理系统。
 
----
+## 版本历史
 
-## 目录结构
+### v1.0.0 — BR2xx Bringup 平台分配管理 (2026-07-30)
 
-```
-hardware-reservation-platform/
-├── client/                      # Vue 3 前端
-│   ├── src/
-│   │   ├── api/index.js         # API 接口层
-│   │   ├── router/index.js      # Vue Router 路由
-│   │   ├── App.vue              # 根组件 (布局/登录/项目切换)
-│   │   └── views/
-│   │       ├── Dashboard.vue    # 总览看板
-│   │       ├── PlatformView.vue # 平台列表 & 详情
-│   │       ├── ChipInfo.vue     # 芯片信息管理
-│   │       ├── TeamView.vue     # 团队分配概览
-│   │       ├── StagePlan.vue    # 阶段规划 & 甘特图
-│   │       └── LogView.vue      # 操作日志
-│   └── dist/                    # 构建产物
-└── server/                      # Express 后端
-    ├── src/
-    │   ├── index.js             # 服务入口
-    │   ├── models/database.js   # SQLite 数据模型
-    │   └── routes/              # API 路由
-    │       ├── platforms.js     # 平台管理
-    │       ├── reservations.js  # 预约管理
-    │       ├── stages.js        # 阶段管理
-    │       ├── projects.js      # 项目管理
-    │       ├── chips.js         # 芯片管理
-    │       ├── dashboard.js     # 统计看板
-    │       └── users.js         # 用户管理
-    └── src/data/
-        └── hardware_reservation.db  # SQLite 数据库文件
-```
+相对于 v0.5.0 的完整改动：
 
----
+#### 新功能
+- **团队分配矩阵**：上下两栏矩阵视图（预分配 + 当前活跃），竖轴为 BU 平台（BU1-BU15），横轴为 14 天时间轴
+- **格子级分配**：管理员可逐格选择团队，按天+平台细粒度永久存储（`day_allocations` 表）
+- **编辑 Bringup 时间**：日历日期选择器，选起始日自动 14 天，保存后时间轴实时刷新
+- **平台列表全面改版**：11 列合并显示（平台 / 类型 / ASIC ID / 实验室位置 / 主板 / OS 信息 / BMC 信息 / JTAG 信息 / 预分配团队 / 当前活跃 / 操作）
+- **类型/实验室位置下拉框**：表格内直接编辑（socket/solder_down；三楼/十楼/健康城）
+- **JTAG 条件显示**：仅 `jtag_enabled=true` 时显示 JTAG 编号 + IP + MAC
+- **团队颜色系统**：18 色调色板 + 显式 TEAM_COLOR_MAP（hbm 橙、ucie 荧光绿、jtag 青等），一眼区分
+- **芯片详情**：详情弹窗芯片 tab 精简为 4 列（平台、ASIC ID、芯片型号、操作）
+- **Bringup 日期持久化**：`system_config` 表存储 `bringup_start`/`bringup_end`，不再依赖周编号
+- **项目切换隔离**：团队分配/平台列表/芯片信息页面隐藏顶部项目选择栏
+- **管理权限守卫**：类型、位置、状态、编辑分配、编辑时间均为 admin only
+- **MBIST 团队/用户**：新增 mbist 用户（mbist/mbist123）
 
-## 目标
+#### 架构变更
+- 新增 `day_allocations` 表支持逐格精度的分配持久化
+- `platforms.js` 预分配团队查询从 `stage_allocations`（粗粒度）切换为 `day_allocations`（细粒度）
+- `teams.js` 新增三个 API：`GET/PUT/DELETE /day-allocate`
+- `stages.js` 新增 `bringupStart`/`bringupEnd` 字段读写
+- 移除平台列表的"编辑预分配团队"对话框（数据由团队分配页面管理）
+- App.vue 顶栏项目选择区加 `v-if` 条件显隐
 
-为多个硬件项目（BR2x6 / BR2x8 / BR200 等）提供统一的资源预约平台，支持：
+#### Bug 修复
+- SQL `LIKE '%BU1%'` 误匹配 BU10/BU11 → 改为 `','||platforms||',' LIKE '%,BU1,%'`
+- 日期编辑弹窗中 `dayRange` 不一致问题 → 统一使用 `editDays`/`tmpDates` ref
+- `dayRange` 从 `weekStartDate()` 硬编码改为 MM-DD 字符串解析
+- Rolldown tree-shaker 误删 setup 变量 → 回退为内联模板 + ref 直接绑定
 
-- 多项目管理（创建、复制、删除项目）
-- 硬件平台管理（新增、编辑、状态变更、预分配团队）
-- 芯片信息管理（序列号、槽位、状态追踪）
-- 团队分配概览（按阶段查看各团队分配的平台与优先级）
-- 阶段时间规划（甘特图时间轴 + 按天团队活动时间线）
-- 操作日志审计（全量操作记录，支持多维度筛选）
-- 资源预约与释放（快速预约、批量操作）
-- 角色权限控制（管理员 / Domain Owner）
+### v0.5.0 — 初始版本
+
+- 基础平台 CRUD
+- 简单团队分配（`stage_allocations` 表）
+- 阶段规划 Gantt 图
+- 芯片信息管理
+- Dashboard 总览看板
+- 登录/用户系统
 
 ---
 
-## 已有页面功能（v0.5）
+## 技术栈
 
-### 1. 总览看板 (Dashboard) — `/`
+- **前端**：Vue 3 + Element Plus + Vite 8
+- **后端**：Express + better-sqlite3
+- **数据库**：SQLite（单文件 `server/src/data/hardware_reservation.db`）
 
-- **统计卡片**：平台总数、使用中、空闲、维护中、活跃团队、活跃预约
-- **Socket 平台状态**：彩色状态卡片（空闲 🟢 / 使用中 🟠 / 维护 🔴），显示 IP 地址 + 当前活跃团队
-- **当前活跃预约列表**：展示所有正在进行中的预约，支持一键释放
-- **各团队平台状态**：按团队统计占用平台数及列表，附使用建议提示
-- **新建预约**：在对话框中选择平台 + 填写用途，自动匹配当前登录用户的团队
-- **项目切换**：顶部选择器切换项目，所有数据自动刷新
-
-### 2. 平台列表 & 详情 (PlatformView) — `/platforms`
-
-- **平台列表**：表格展示所有平台（ID、IP、位置、主板/配置、预分配团队、活跃预约、状态）
-- **状态管理**：下拉菜单直接变更平台状态（空闲/使用中/维护）
-- **平台详情弹窗**：
-  - 基本信息标签页（IP、位置、配置、预分配团队）
-  - 芯片信息标签页（查看/添加/编辑/删除芯片）
-  - 预约记录标签页（历史预约 + 当前活跃）
-  - 操作日志标签页（该平台相关的操作记录）
-- **平台配置编辑**：修改 IP、位置、CPU、内存、存储、OS、备注
-- **快速预约**：在列表中直接选择团队进行预约
-- **管理员功能**：
-  - 新增平台（新建 / 从已有平台复制）
-  - 删除平台
-  - 编辑预分配团队（勾选团队复选框）
-  - 用户管理（添加/编辑/删除用户，角色设置）
-
-### 3. 芯片信息管理 (ChipInfo) — `/chips`
-
-- **芯片列表**：表格展示所有芯片（ID、所属平台、槽位、序列号、型号、状态、备注）
-- **状态标签**：空闲(info) / 测试中(warning) / 已完成(success) / 失败(danger)
-- **搜索过滤**：支持按序列号/型号/备注关键字搜索
-- **筛选**：按平台筛选 + 按状态筛选
-- **新增/编辑芯片**：对话框选择所属平台，填写槽位/序列号/型号/状态/备注
-- **删除芯片**：确认对话框后删除
-- **项目感知**：自动过滤显示当前项目下的芯片
-
-### 4. 团队分配概览 (TeamView) — `/teams`
-
-- **阶段选择器**：顶部下拉选择阶段（BU/FE/FST/PVT），切换后数据自动更新
-- **分配表格**：展示当前阶段下各团队的分配情况
-  - 优先级标签（P0 红 / P1 黄 / P2 蓝）
-  - 团队名称（带颜色标识）
-  - 负责人
-  - 分配平台列表（按空闲/使用中/维护着色）
-  - 分配模式（独占 / 共享）
-- **快速预约**：点击某团队的"预约"按钮，从该团队分配的平台列表中选择平台进行预约
-- **项目感知**：自动过滤当前项目的数据
-
-### 5. 阶段规划 (StagePlan) — `/stage-plan`
-
-- **阶段甘特图（周粒度）**：
-  - 横向时间轴：从当前周到 2027-W52
-  - 年份合并显示 + 周编号
-  - 每个阶段的彩色横条（BU 🔴 / FE 🟠 / FST 🔵 / PVT 🟢）
-  - 当前阶段高亮 + 编号
-  - 点击阶段横条展示阶段详情（分配平台、参与团队）
-- **团队活动时间线（日粒度）**：
-  - 当前阶段的按天展开视图
-  - 月份头部 + 日期头部（周末/今日高亮）
-  - 每个团队一行，按优先级着色（P0 红 / P1 黄 / P2 绿）
-  - 鼠标悬停显示 tooltip（阶段、优先级、平台、日期）
-  - 跨年阶段支持（W50 → W1 自动处理）
-- **编辑时间**：对话框修改各阶段的开始周/结束周/持续周数
-- **阶段详情卡片**：点击甘特图上的阶段横条，展开详情面板
-
-### 6. 操作日志 (LogView) — `/logs`
-
-- **日志列表**：表格展示操作记录（时间、平台、操作类型、团队、负责人、详情）
-- **操作类型标签**：预约(warning) / 释放(success) / 阶段切换(primary) / 维护(info) / 状态变更
-- **多维度筛选**：
-  - 操作类型下拉筛选（预约/释放/阶段切换/维护/健康检查/状态变更）
-  - 平台 ID 文本搜索
-  - 团队下拉筛选
-  - 日期范围选择器
-- **分页**：支持每页 50/100/200 条，前后翻页
-- **项目感知**：自动过滤当前项目下的日志
-
----
-
-## 开发指南
-
-### 新增页面需遵守的约定
-
-1. **注入当前项目**：
-   ```js
-   const currentProject = inject('currentProject', ref('BR2x6'))
-   ```
-
-2. **监听项目切换事件**：
-   ```js
-   if (typeof window !== 'undefined') {
-     window.addEventListener('project-changed', () => { loadData() })
-   }
-   ```
-
-3. **项目过滤**：所有 API 调用或前端过滤需按 `currentProject.value` 筛选数据
-
-4. **构建验证**：
-   ```bash
-   cd client && npm run build
-   ```
-
----
-
-## 部署
-
-当前部署方式：本地 PM2 托管 Express 后端，前端 build 产物由后端静态托管。
+## 启动
 
 ```bash
-# 构建前端
-cd client && npm run build
+# 后端
+node server/src/index.js          # PM2: pm2 start server/src/index.js --name hardware-reservation
 
-# 启动后端
-cd server && pm2 start src/index.js --name hardware-reservation
+# 前端（开发）
+cd client && npm run dev
+
+# 前端（构建）
+cd client && npm run build         # 构建后静态文件由 Express 自动伺服
+```
+
+## 默认用户
+
+| 用户名 | 密码 | 角色 |
+|--------|------|------|
+| admin | admin123 | 管理员 |
+| board | board123 | Domain Owner |
+| jtag | jtag123 | Domain Owner |
+| mbist | mbist123 | Domain Owner |
+| ...各团队名 | {teamId}123 | Domain Owner |
+
+## 团队分配操作流程
+
+1. 管理员登录 → 进入"团队分配"页面
+2. 点击「编辑时间」选择 BU 阶段的起始日期（自动14天）
+3. 点击「编辑分配」→ 格子里出现下拉框 → 选择团队
+4. 选中的格子立即保存，颜色标签显示团队名
+5. 再次点击「退出分配」完成编辑
+6. 平台列表的「预分配团队」列自动同步显示该平台被分配的团队
+
+## 数据库结构
+
+```
+platforms        — BU1-BU15 平台
+stages           — BU/FE/FST/PVT 阶段  
+stage_allocations — 粗粒度团队→平台分配（仅用于初始导入）
+day_allocations  — 细粒度格子级分配（platform_id + date_stamp + team_id）
+reservations     — 预约记录
+chips            — 芯片信息
+teams            — 团队定义
+users            — 登录用户
+system_config    — 系统配置（current_stage, bringup_start/end 等）
 ```

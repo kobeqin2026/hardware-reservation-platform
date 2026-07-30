@@ -39,12 +39,13 @@
           <span>操作日志</span>
         </el-menu-item>
       </el-menu>
+      <div class="version-bar">v1.1.0</div>
     </el-aside>
 
     <el-container>
       <!-- 顶部 -->
       <el-header class="app-header">
-        <div class="header-left">
+        <div class="header-left" v-if="route.path !== '/teams' && route.path !== '/platforms' && route.path !== '/chips'">
           <span style="font-size:13px;color:#909399;margin-right:6px;">项目</span>
           <el-select v-model="currentProject" size="small" style="width:140px;" @change="handleProjectSwitch">
             <el-option v-for="p in allProjects" :key="p" :label="p" :value="p" />
@@ -329,6 +330,18 @@ html, body, #app { height: 100%; font-family: -apple-system, BlinkMacSystemFont,
 }
 
 .side-menu { border-right: none !important; }
+
+.version-bar {
+  position: fixed;
+  bottom: 12px;
+  left: 0;
+  width: 220px;
+  text-align: center;
+  font-size: 11px;
+  color: rgba(255,255,255,0.35);
+  pointer-events: none;
+  user-select: none;
+}
 
 .app-header {
   background: #fff;

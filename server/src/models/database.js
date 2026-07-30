@@ -48,7 +48,8 @@ function initTables() {
     -- 平台
     CREATE TABLE IF NOT EXISTS platforms (
       id TEXT PRIMARY KEY,
-      label TEXT NOT NULL,                -- Socket1, Socket2 ...
+      label TEXT NOT NULL,                -- BU1, BU2, BU3, BU4
+      type TEXT NOT NULL DEFAULT 'socket' CHECK(type IN ('socket','solder_down')),
       project TEXT NOT NULL DEFAULT 'BR2x6',  -- 所属项目
       status TEXT NOT NULL DEFAULT 'idle' CHECK(status IN ('idle','in_use','maintenance','ft_reserved','backup')),
       location TEXT DEFAULT '',
@@ -122,7 +123,36 @@ function initTables() {
     }
 
     function migrate() {
-      // 为 platforms 表添加 project 列（如果不存在）
+      // 先备份原始 chips 数据，然后重建表允许 NULL
+      // 删除外键约束，允许 platform_id 为 NULL
+      const chipNullable = db.prepare("PRAGMA table_info('chips')").all().find(c => c.name === 'platform_id');
+      if (chipNullable && chipNullable.notnull) {
+        console.log('[migrate] relaxing chips.platform_id to allow NULL');
+        db.pragma('foreign_keys = OFF');
+        db.exec(`
+          CREATE TABLE IF NOT EXISTS chips_new (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            platform_id TEXT REFERENCES platforms(id),
+            slot TEXT DEFAULT '',
+            serial TEXT DEFAULT '',
+            type TEXT DEFAULT '',
+            status TEXT DEFAULT 'idle' CHECK(status IN ('idle','testing','done','failed')),
+            remark TEXT DEFAULT '',
+            asic_id TEXT DEFAULT '',
+            uuid TEXT DEFAULT '',
+            mbist_result TEXT DEFAULT '',
+            ft_status TEXT DEFAULT '',
+            slt_status TEXT DEFAULT '',
+            created_at TEXT DEFAULT (datetime('now','localtime')),
+            updated_at TEXT DEFAULT (datetime('now','localtime'))
+          )
+        `);
+        db.exec('INSERT INTO chips_new SELECT * FROM chips');
+        db.exec('DROP TABLE chips');
+        db.exec('ALTER TABLE chips_new RENAME TO chips');
+        db.pragma('foreign_keys = ON');
+        console.log('[migrate] chips.platform_id now allows NULL');
+      }
       const cols = db.prepare("PRAGMA table_info('platforms')").all();
       if (!cols.find(c => c.name === 'project')) {
         db.exec("ALTER TABLE platforms ADD COLUMN project TEXT NOT NULL DEFAULT 'BR2x6'");
@@ -130,6 +160,36 @@ function initTables() {
       }
       // 设置所有现有平台为 BR2x6
       db.exec("UPDATE platforms SET project='BR2x6' WHERE project IS NULL OR project=''");
+
+      // 为 chips 表添加新列 (ASIC ID, UUID, MBist, FT, SLT)
+      const chipCols = db.prepare("PRAGMA table_info('chips')").all();
+      if (!chipCols.find(c => c.name === 'asic_id')) {
+        db.exec("ALTER TABLE chips ADD COLUMN asic_id TEXT DEFAULT ''");
+        console.log('[migrate] added asic_id to chips');
+      }
+      if (!chipCols.find(c => c.name === 'uuid')) {
+        db.exec("ALTER TABLE chips ADD COLUMN uuid TEXT DEFAULT ''");
+        console.log('[migrate] added uuid to chips');
+      }
+      if (!chipCols.find(c => c.name === 'mbist_result')) {
+        db.exec("ALTER TABLE chips ADD COLUMN mbist_result TEXT DEFAULT ''");
+        console.log('[migrate] added mbist_result to chips');
+      }
+      if (!chipCols.find(c => c.name === 'ft_status')) {
+        db.exec("ALTER TABLE chips ADD COLUMN ft_status TEXT DEFAULT ''");
+        console.log('[migrate] added ft_status to chips');
+      }
+      if (!chipCols.find(c => c.name === 'slt_status')) {
+        db.exec("ALTER TABLE chips ADD COLUMN slt_status TEXT DEFAULT ''");
+        console.log('[migrate] added slt_status to chips');
+      }
+
+      // 为 platforms 表添加 type 列（如果不存在）
+      const platCols = db.prepare("PRAGMA table_info('platforms')").all();
+      if (!platCols.find(c => c.name === 'type')) {
+        db.exec("ALTER TABLE platforms ADD COLUMN type TEXT NOT NULL DEFAULT 'socket'");
+        console.log('[migrate] added type column to platforms');
+      }
     }
 
     function seedData() {
@@ -163,80 +223,72 @@ function initTables() {
   ];
   TEAMS.forEach(t => insertTeam.run(...t));
 
-  // 创建15个平台
-  const insertPlatform = db.prepare('INSERT INTO platforms (id, label, status) VALUES (?, ?, ?)');
+  // 创建15个平台：BU1-BU15 (循环 socket,socket,solder_down,solder_down)
+  const insertPlatform = db.prepare('INSERT INTO platforms (id, label, type, status) VALUES (?, ?, ?, ?)');
+  const platTypes = ['socket', 'socket', 'solder_down', 'solder_down'];
   for (let i = 1; i <= 15; i++) {
-    const sid = `Socket${i}`;
-    if (i <= 12) {
-      insertPlatform.run(sid, sid, 'idle');
-    } else if (i === 13) {
-      insertPlatform.run(sid, sid, 'backup');      // Socket13 = backup
-    } else if (i === 14) {
-      insertPlatform.run(sid, sid, 'backup');      // Socket14 = backup
-    } else {
-      insertPlatform.run(sid, sid, 'ft_reserved'); // Socket15 = FT
-    }
+    insertPlatform.run('BU' + i, 'BU' + i, platTypes[(i - 1) % 4], 'idle');
   }
 
-  // 创建阶段分配
+  // 创建阶段分配（所有平台均分）
   const insertAlloc = db.prepare('INSERT INTO stage_allocations (stage_id, team_id, platforms, slot_mode, priority) VALUES (?, ?, ?, ?, ?)');
 
   const ALLOC = [
-    // BU
-    { s: 'BU', t: 'board',    p: 'Socket1,Socket2,Socket3,Socket4',                 m: 'shared', r: 0 },
-    { s: 'BU', t: 'jtag',     p: 'Socket1,Socket2,Socket3,Socket4,Socket5',         m: 'shared', r: 0 },
-    { s: 'BU', t: 'firmware', p: 'Socket1,Socket2',                                 m: 'shared', r: 1 },
-    { s: 'BU', t: 'pcie',     p: 'Socket1,Socket2',                                 m: 'shared', r: 1 },
-    { s: 'BU', t: 'hbm',      p: 'Socket1,Socket2',                                 m: 'shared', r: 1 },
-    { s: 'BU', t: 'ucie',     p: 'Socket1,Socket2,Socket3,Socket4',                 m: 'shared', r: 1 },
-    { s: 'BU', t: 'ethernet', p: 'Socket1,Socket2,Socket5',                         m: 'shared', r: 1 },
-    { s: 'BU', t: 'diag',     p: 'Socket1,Socket2',                                 m: 'shared', r: 1 },
-    { s: 'BU', t: 'swtool',   p: 'Socket1,Socket2',                                 m: 'shared', r: 1 },
+    // BU — 所有团队分配所有15个平台
+    { s: 'BU', t: 'board',    p: 'BU1,BU2,BU3,BU4,BU5,BU6,BU7,BU8,BU9,BU10,BU11,BU12,BU13,BU14,BU15', m: 'shared', r: 0 },
+    { s: 'BU', t: 'jtag',     p: 'BU1,BU2,BU3,BU4,BU5,BU6,BU7,BU8,BU9,BU10,BU11,BU12,BU13,BU14,BU15', m: 'shared', r: 0 },
+    { s: 'BU', t: 'firmware', p: 'BU1,BU2,BU3,BU4,BU5,BU6,BU7,BU8,BU9,BU10,BU11,BU12,BU13,BU14,BU15', m: 'shared', r: 1 },
+    { s: 'BU', t: 'pcie',     p: 'BU1,BU2,BU3,BU4,BU5,BU6,BU7,BU8,BU9,BU10,BU11,BU12,BU13,BU14,BU15', m: 'shared', r: 1 },
+    { s: 'BU', t: 'hbm',      p: 'BU1,BU2,BU3,BU4,BU5,BU6,BU7,BU8,BU9,BU10,BU11,BU12,BU13,BU14,BU15', m: 'shared', r: 1 },
+    { s: 'BU', t: 'ucie',     p: 'BU1,BU2,BU3,BU4,BU5,BU6,BU7,BU8,BU9,BU10,BU11,BU12,BU13,BU14,BU15', m: 'shared', r: 1 },
+    { s: 'BU', t: 'ethernet', p: 'BU1,BU2,BU3,BU4,BU5,BU6,BU7,BU8,BU9,BU10,BU11,BU12,BU13,BU14,BU15', m: 'shared', r: 1 },
+    { s: 'BU', t: 'diag',     p: 'BU1,BU2,BU3,BU4,BU5,BU6,BU7,BU8,BU9,BU10,BU11,BU12,BU13,BU14,BU15', m: 'shared', r: 1 },
+    { s: 'BU', t: 'swtool',   p: 'BU1,BU2,BU3,BU4,BU5,BU6,BU7,BU8,BU9,BU10,BU11,BU12,BU13,BU14,BU15', m: 'shared', r: 1 },
     // FE
-    { s: 'FE', t: 'board',    p: 'Socket1,Socket4,Socket8,Socket9,Socket10,Socket11,Socket12,Socket13', m: 'shared', r: 0 },
-    { s: 'FE', t: 'jtag',     p: 'Socket1,Socket2,Socket3,Socket4,Socket5',         m: 'shared', r: 0 },
-    { s: 'FE', t: 'firmware', p: 'Socket1,Socket2',                                 m: 'shared', r: 1 },
-    { s: 'FE', t: 'pcie',     p: 'Socket1,Socket2,Socket3,Socket4,Socket5,Socket6', m: 'shared', r: 0 },
-    { s: 'FE', t: 'hbm',      p: 'Socket1,Socket2,Socket3,Socket4,Socket5,Socket6,Socket7', m: 'shared', r: 0 },
-    { s: 'FE', t: 'ucie',     p: 'Socket1,Socket2,Socket3,Socket4,Socket5,Socket6,Socket7,Socket8', m: 'shared', r: 1 },
-    { s: 'FE', t: 'ethernet', p: 'Socket1,Socket2,Socket3,Socket4,Socket5,Socket6,Socket7,Socket8,Socket9,Socket10,Socket11,Socket12,Socket13,Socket14', m: 'shared', r: 1 },
-    { s: 'FE', t: 'diag',     p: 'Socket1,Socket2,Socket3,Socket4,Socket5,Socket6,Socket7,Socket8,Socket9,Socket10,Socket11,Socket12,Socket13,Socket14', m: 'shared', r: 1 },
-    { s: 'FE', t: 'swtool',   p: 'Socket1',                                         m: 'shared', r: 1 },
-    { s: 'FE', t: 'kmd',      p: 'Socket3,Socket4,Socket5,Socket6,Socket7,Socket8,Socket9,Socket10,Socket11,Socket12,Socket13,Socket14', m: 'shared', r: 1 },
-    { s: 'FE', t: 'umd',      p: 'Socket3,Socket4,Socket5,Socket6,Socket7,Socket8', m: 'shared', r: 2 },
-    { s: 'FE', t: 'video',    p: 'Socket5,Socket6',                                 m: 'shared', r: 2 },
-    { s: 'FE', t: 'swci',     p: 'Socket5,Socket6,Socket7,Socket8,Socket9,Socket10,Socket11,Socket12,Socket13,Socket14', m: 'shared', r: 2 },
-    { s: 'FE', t: 'swmodel',  p: 'Socket5,Socket6,Socket7,Socket8,Socket9,Socket10,Socket11,Socket12,Socket13,Socket14', m: 'shared', r: 2 },
-    { s: 'FE', t: 'slt',      p: '',                                                m: 'shared', r: 2 },
+    { s: 'FE', t: 'board',    p: 'BU1,BU2,BU3,BU4,BU5,BU6,BU7,BU8,BU9,BU10,BU11,BU12,BU13,BU14,BU15', m: 'shared', r: 0 },
+    { s: 'FE', t: 'jtag',     p: 'BU1,BU2,BU3,BU4,BU5,BU6,BU7,BU8,BU9,BU10,BU11,BU12,BU13,BU14,BU15', m: 'shared', r: 0 },
+    { s: 'FE', t: 'firmware', p: 'BU1,BU2',                  m: 'shared', r: 1 },
+    { s: 'FE', t: 'pcie',     p: 'BU1,BU2,BU3,BU4,BU5,BU6,BU7,BU8,BU9,BU10,BU11,BU12,BU13,BU14,BU15', m: 'shared', r: 0 },
+    { s: 'FE', t: 'hbm',      p: 'BU1,BU2,BU3,BU4,BU5,BU6,BU7,BU8,BU9,BU10,BU11,BU12,BU13,BU14,BU15', m: 'shared', r: 0 },
+    { s: 'FE', t: 'ucie',     p: 'BU1,BU2,BU3,BU4,BU5,BU6,BU7,BU8,BU9,BU10,BU11,BU12,BU13,BU14,BU15', m: 'shared', r: 1 },
+    { s: 'FE', t: 'ethernet', p: 'BU1,BU2,BU3,BU4,BU5,BU6,BU7,BU8,BU9,BU10,BU11,BU12,BU13,BU14,BU15', m: 'shared', r: 1 },
+    { s: 'FE', t: 'diag',     p: 'BU1,BU2,BU3,BU4,BU5,BU6,BU7,BU8,BU9,BU10,BU11,BU12,BU13,BU14,BU15', m: 'shared', r: 1 },
+    { s: 'FE', t: 'swtool',   p: 'BU1',                      m: 'shared', r: 1 },
+    { s: 'FE', t: 'kmd',      p: 'BU1,BU2,BU3,BU4,BU5,BU6,BU7,BU8,BU9,BU10,BU11,BU12,BU13,BU14,BU15', m: 'shared', r: 1 },
+    { s: 'FE', t: 'umd',      p: 'BU1,BU2,BU3,BU4,BU5,BU6,BU7,BU8,BU9,BU10,BU11,BU12,BU13,BU14,BU15', m: 'shared', r: 2 },
+    { s: 'FE', t: 'video',    p: 'BU1,BU2',                  m: 'shared', r: 2 },
+    { s: 'FE', t: 'swci',     p: 'BU1,BU2,BU3,BU4,BU5,BU6,BU7,BU8,BU9,BU10,BU11,BU12,BU13,BU14,BU15', m: 'shared', r: 2 },
+    { s: 'FE', t: 'swmodel',  p: 'BU1,BU2,BU3,BU4,BU5,BU6,BU7,BU8,BU9,BU10,BU11,BU12,BU13,BU14,BU15', m: 'shared', r: 2 },
+    { s: 'FE', t: 'slt',      p: '',                         m: 'shared', r: 2 },
     // FST
-    { s: 'FST', t: 'board',   p: 'Socket1,Socket4,Socket8,Socket9,Socket10,Socket11,Socket12,Socket13', m: 'shared', r: 0 },
-    { s: 'FST', t: 'jtag',    p: 'Socket1,Socket2,Socket3,Socket4,Socket5',         m: 'shared', r: 0 },
-    { s: 'FST', t: 'pcie',    p: 'Socket1,Socket2,Socket3,Socket4,Socket5,Socket6,Socket7,Socket8,Socket9,Socket10,Socket11,Socket12,Socket13,Socket14', m: 'shared', r: 0 },
-    { s: 'FST', t: 'hbm',     p: 'Socket1,Socket2,Socket3,Socket4,Socket5,Socket6,Socket7,Socket8,Socket9,Socket10,Socket11,Socket12,Socket13,Socket14', m: 'shared', r: 0 },
-    { s: 'FST', t: 'ucie',    p: 'Socket1,Socket2,Socket3,Socket4,Socket5,Socket6,Socket7,Socket8,Socket9,Socket10,Socket11,Socket12,Socket13,Socket14', m: 'shared', r: 1 },
-    { s: 'FST', t: 'ethernet',p: 'Socket1,Socket2,Socket3,Socket4,Socket5,Socket6,Socket7,Socket8,Socket9,Socket10,Socket11,Socket12,Socket13,Socket14', m: 'shared', r: 1 },
-    { s: 'FST', t: 'diag',    p: 'Socket1,Socket2,Socket3,Socket4,Socket5,Socket6,Socket7,Socket8,Socket9,Socket10,Socket11,Socket12,Socket13,Socket14', m: 'shared', r: 1 },
-    { s: 'FST', t: 'slt',     p: 'Socket5,Socket6,Socket7,Socket8,Socket9,Socket10,Socket11,Socket12,Socket13', m: 'shared', r: 0 },
-    { s: 'FST', t: 'kmd',     p: 'Socket3,Socket4,Socket5,Socket6,Socket7,Socket8,Socket9,Socket10,Socket11,Socket12,Socket13,Socket14', m: 'shared', r: 0 },
-    { s: 'FST', t: 'umd',     p: 'Socket3,Socket4,Socket5,Socket6,Socket7,Socket8', m: 'shared', r: 1 },
-    { s: 'FST', t: 'video',   p: 'Socket5,Socket6',                                 m: 'shared', r: 1 },
-    { s: 'FST', t: 'swci',    p: 'Socket5,Socket6,Socket7,Socket8,Socket9,Socket10,Socket11,Socket12,Socket13,Socket14', m: 'shared', r: 1 },
-    { s: 'FST', t: 'swmodel', p: 'Socket5,Socket6,Socket7,Socket8,Socket9,Socket10,Socket11,Socket12,Socket13,Socket14', m: 'shared', r: 1 },
-    { s: 'FST', t: 'ppo',     p: 'Socket8,Socket9,Socket10,Socket11,Socket12,Socket13,Socket14', m: 'shared', r: 2 },
-    { s: 'FST', t: 'swtool',  p: '',                                                m: 'shared', r: 2 },
+    { s: 'FST', t: 'board',   p: 'BU1,BU2,BU3,BU4,BU5,BU6,BU7,BU8,BU9,BU10,BU11,BU12,BU13,BU14,BU15', m: 'shared', r: 0 },
+    { s: 'FST', t: 'jtag',    p: 'BU1,BU2,BU3,BU4,BU5,BU6,BU7,BU8,BU9,BU10,BU11,BU12,BU13,BU14,BU15', m: 'shared', r: 0 },
+    { s: 'FST', t: 'pcie',    p: 'BU1,BU2,BU3,BU4,BU5,BU6,BU7,BU8,BU9,BU10,BU11,BU12,BU13,BU14,BU15', m: 'shared', r: 0 },
+    { s: 'FST', t: 'hbm',     p: 'BU1,BU2,BU3,BU4,BU5,BU6,BU7,BU8,BU9,BU10,BU11,BU12,BU13,BU14,BU15', m: 'shared', r: 0 },
+    { s: 'FST', t: 'ucie',    p: 'BU1,BU2,BU3,BU4,BU5,BU6,BU7,BU8,BU9,BU10,BU11,BU12,BU13,BU14,BU15', m: 'shared', r: 1 },
+    { s: 'FST', t: 'ethernet',p: 'BU1,BU2,BU3,BU4,BU5,BU6,BU7,BU8,BU9,BU10,BU11,BU12,BU13,BU14,BU15', m: 'shared', r: 1 },
+    { s: 'FST', t: 'diag',    p: 'BU1,BU2,BU3,BU4,BU5,BU6,BU7,BU8,BU9,BU10,BU11,BU12,BU13,BU14,BU15', m: 'shared', r: 1 },
+    { s: 'FST', t: 'slt',     p: 'BU1,BU2,BU3,BU4,BU5,BU6,BU7,BU8,BU9,BU10,BU11,BU12,BU13,BU14,BU15', m: 'shared', r: 0 },
+    { s: 'FST', t: 'kmd',     p: 'BU1,BU2,BU3,BU4,BU5,BU6,BU7,BU8,BU9,BU10,BU11,BU12,BU13,BU14,BU15', m: 'shared', r: 0 },
+    { s: 'FST', t: 'umd',     p: 'BU1,BU2,BU3,BU4,BU5,BU6,BU7,BU8,BU9,BU10,BU11,BU12,BU13,BU14,BU15', m: 'shared', r: 1 },
+    { s: 'FST', t: 'video',   p: 'BU1,BU2',                  m: 'shared', r: 1 },
+    { s: 'FST', t: 'swci',    p: 'BU1,BU2,BU3,BU4,BU5,BU6,BU7,BU8,BU9,BU10,BU11,BU12,BU13,BU14,BU15', m: 'shared', r: 1 },
+    { s: 'FST', t: 'swmodel', p: 'BU1,BU2,BU3,BU4,BU5,BU6,BU7,BU8,BU9,BU10,BU11,BU12,BU13,BU14,BU15', m: 'shared', r: 1 },
+    { s: 'FST', t: 'ppo',     p: 'BU1,BU2,BU3,BU4,BU5,BU6,BU7,BU8,BU9,BU10,BU11,BU12,BU13,BU14,BU15', m: 'shared', r: 2 },
+    { s: 'FST', t: 'swtool',  p: '',                         m: 'shared', r: 2 },
     // PVT
-    { s: 'PVT', t: 'pcie',    p: 'Socket1,Socket2,Socket3,Socket4,Socket5,Socket6,Socket7,Socket8,Socket9,Socket10,Socket11,Socket12,Socket13,Socket14', m: 'shared', r: 0 },
-    { s: 'PVT', t: 'hbm',     p: 'Socket1,Socket2,Socket3,Socket4,Socket5,Socket6,Socket7,Socket8,Socket9,Socket10,Socket11,Socket12,Socket13,Socket14', m: 'shared', r: 0 },
-    { s: 'PVT', t: 'ethernet',p: 'Socket1,Socket2,Socket3,Socket4,Socket5,Socket6,Socket7,Socket8,Socket9,Socket10,Socket11,Socket12,Socket13,Socket14', m: 'shared', r: 0 },
-    { s: 'PVT', t: 'ucie',    p: 'Socket1,Socket2,Socket3,Socket4,Socket5,Socket6,Socket7,Socket8,Socket9,Socket10,Socket11,Socket12,Socket13,Socket14', m: 'shared', r: 1 },
-    { s: 'PVT', t: 'diag',    p: 'Socket1,Socket2,Socket3,Socket4,Socket5,Socket6,Socket7,Socket8,Socket9,Socket10,Socket11,Socket12,Socket13,Socket14', m: 'shared', r: 1 },
-    { s: 'PVT', t: 'slt',     p: 'Socket5,Socket6,Socket7,Socket8,Socket9,Socket10,Socket11,Socket12,Socket13', m: 'shared', r: 0 },
-    { s: 'PVT', t: 'kmd',     p: 'Socket3,Socket4,Socket5,Socket6,Socket7,Socket8,Socket9,Socket10,Socket11,Socket12,Socket13,Socket14', m: 'shared', r: 0 },
-    { s: 'PVT', t: 'umd',     p: 'Socket3,Socket4,Socket5,Socket6,Socket7,Socket8', m: 'shared', r: 1 },
-    { s: 'PVT', t: 'video',   p: 'Socket5,Socket6',                                 m: 'shared', r: 2 },
-    { s: 'PVT', t: 'swci',    p: 'Socket5,Socket6,Socket7,Socket8,Socket9,Socket10,Socket11,Socket12,Socket13,Socket14', m: 'shared', r: 1 },
-    { s: 'PVT', t: 'swmodel', p: 'Socket5,Socket6,Socket7,Socket8,Socket9,Socket10,Socket11,Socket12,Socket13,Socket14', m: 'shared', r: 1 },
-    { s: 'PVT', t: 'ppo',     p: 'Socket8,Socket9,Socket10,Socket11,Socket12,Socket13,Socket14', m: 'shared', r: 1 },
+    { s: 'PVT', t: 'pcie',    p: 'BU1,BU2,BU3,BU4,BU5,BU6,BU7,BU8,BU9,BU10,BU11,BU12,BU13,BU14,BU15', m: 'shared', r: 0 },
+    { s: 'PVT', t: 'hbm',     p: 'BU1,BU2,BU3,BU4,BU5,BU6,BU7,BU8,BU9,BU10,BU11,BU12,BU13,BU14,BU15', m: 'shared', r: 0 },
+    { s: 'PVT', t: 'ethernet',p: 'BU1,BU2,BU3,BU4,BU5,BU6,BU7,BU8,BU9,BU10,BU11,BU12,BU13,BU14,BU15', m: 'shared', r: 0 },
+    { s: 'PVT', t: 'ucie',    p: 'BU1,BU2,BU3,BU4,BU5,BU6,BU7,BU8,BU9,BU10,BU11,BU12,BU13,BU14,BU15', m: 'shared', r: 1 },
+    { s: 'PVT', t: 'diag',    p: 'BU1,BU2,BU3,BU4,BU5,BU6,BU7,BU8,BU9,BU10,BU11,BU12,BU13,BU14,BU15', m: 'shared', r: 1 },
+    { s: 'PVT', t: 'slt',     p: 'BU1,BU2,BU3,BU4,BU5,BU6,BU7,BU8,BU9,BU10,BU11,BU12,BU13,BU14,BU15', m: 'shared', r: 0 },
+    { s: 'PVT', t: 'kmd',     p: 'BU1,BU2,BU3,BU4,BU5,BU6,BU7,BU8,BU9,BU10,BU11,BU12,BU13,BU14,BU15', m: 'shared', r: 0 },
+    { s: 'PVT', t: 'umd',     p: 'BU1,BU2,BU3,BU4,BU5,BU6,BU7,BU8,BU9,BU10,BU11,BU12,BU13,BU14,BU15', m: 'shared', r: 1 },
+    { s: 'PVT', t: 'video',   p: 'BU1,BU2',                  m: 'shared', r: 2 },
+    { s: 'PVT', t: 'swci',    p: 'BU1,BU2,BU3,BU4,BU5,BU6,BU7,BU8,BU9,BU10,BU11,BU12,BU13,BU14,BU15', m: 'shared', r: 1 },
+    { s: 'PVT', t: 'swmodel', p: 'BU1,BU2,BU3,BU4,BU5,BU6,BU7,BU8,BU9,BU10,BU11,BU12,BU13,BU14,BU15', m: 'shared', r: 1 },
+    { s: 'PVT', t: 'ppo',     p: 'BU1,BU2,BU3,BU4,BU5,BU6,BU7,BU8,BU9,BU10,BU11,BU12,BU13,BU14,BU15', m: 'shared', r: 1 },
   ];
   ALLOC.forEach(a => insertAlloc.run(a.s, a.t, a.p, a.m, a.r));
 

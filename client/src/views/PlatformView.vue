@@ -18,28 +18,74 @@
         </div>
       </template>
 
-      <el-table :data="sortedPlatforms" stripe size="small">
-        <el-table-column prop="label" label="平台" width="80" />
-        <el-table-column label="IP地址" width="140">
+      <el-table :data="sortedPlatforms" stripe size="small" style="width:100%;">
+        <el-table-column prop="label" label="平台" width="70" />
+        <el-table-column label="类型" width="100">
           <template #default="{row}">
-            <span style="color:#409EFF;font-family:monospace;">{{ row.config?.ip || '-' }}</span>
+            <el-select v-if="isAdmin" v-model="row.type" size="small" style="width:88px;" @change="val => handleTypeChange(row, val)">
+              <el-option label="Socket" value="socket" />
+              <el-option label="Solder Down" value="solder_down" />
+            </el-select>
+            <el-tag v-else :type="row.type === 'socket' ? 'primary' : 'warning'" size="small">{{ row.type === 'socket' ? 'Socket' : 'Solder Down' }}</el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column label="ASIC ID" min-width="140" show-overflow-tooltip>
+          <template #default="{row}">
+            <div v-if="row.chips && row.chips.length" style="line-height:1.5;">
+              <div v-for="c in row.chips" :key="c.asic_id" style="font-size:11px;">{{ c.asic_id }}</div>
+            </div>
+            <span v-else style="color:#ccc;">-</span>
           </template>
         </el-table-column>
         <el-table-column label="实验室位置" width="120">
           <template #default="{row}">
-            <span>{{ row.config?.location || row.location || '-' }}</span>
+            <el-select v-if="isAdmin" v-model="row.location" size="small" style="width:105px;" @change="val => handleLocationChange(row, val)">
+              <el-option label="三楼" value="三楼" />
+              <el-option label="十楼" value="十楼" />
+              <el-option label="健康城" value="健康城" />
+            </el-select>
+            <el-tag v-else size="small" style="border:none;">{{ row.location || '-' }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="主板/配置" min-width="160">
+        <el-table-column label="主板" width="120">
           <template #default="{row}">
-            <span v-if="row.config?.motherboard">{{ row.config.motherboard }}</span>
-            <span v-else-if="row.config?.cpu">{{ row.config.cpu }}</span>
+            <span>{{ row.config?.motherboard || row.config?.cpu || '-' }}</span>
+          </template>
+        </el-table-column>
+        <el-table-column label="OS 信息" min-width="200">
+          <template #default="{row}">
+            <div v-if="row.config?.os" style="line-height:1.5;font-size:11px;">
+              <div style="font-family:monospace;">OS: {{ row.config.os }}</div>
+              <div><span style="color:#999;">IP:</span> <span style="font-family:monospace;color:#409EFF;">{{ row.config.ip || '-' }}</span></div>
+              <div><span style="color:#999;">MAC:</span> <span style="font-family:monospace;">{{ row.config.mac || '-' }}</span></div>
+              <div><span style="color:#999;">用户/密码:</span> {{ row.config.os_user || '-' }}/{{ row.config.os_pass || '-' }}</div>
+            </div>
+            <span v-else style="color:#ccc;">-</span>
+          </template>
+        </el-table-column>
+        <el-table-column label="BMC 信息" min-width="200">
+          <template #default="{row}">
+            <div v-if="row.config?.bmc_ip" style="line-height:1.5;font-size:11px;">
+              <div><span style="color:#999;">IP:</span> <span style="font-family:monospace;color:#409EFF;">{{ row.config.bmc_ip }}</span></div>
+              <div><span style="color:#999;">MAC:</span> <span style="font-family:monospace;">{{ row.config.bmc_mac || '-' }}</span></div>
+              <div><span style="color:#999;">用户/密码:</span> {{ row.config.bmc_user || '-' }}/{{ row.config.bmc_pass || '-' }}</div>
+            </div>
+            <span v-else style="color:#ccc;">-</span>
+          </template>
+        </el-table-column>
+        <el-table-column label="JTAG 信息" min-width="180">
+          <template #default="{row}">
+            <div v-if="row.config?.jtag_enabled" style="line-height:1.5;font-size:11px;">
+              <div><span style="color:#999;">JTAG:</span> {{ row.config.jtag_name || '-' }}</div>
+              <div><span style="color:#999;">IP:</span> <span style="font-family:monospace;color:#409EFF;">{{ row.config.jtag_ip || '-' }}</span></div>
+              <div><span style="color:#999;">MAC:</span> <span style="font-family:monospace;">{{ row.config.jtag_mac || '-' }}</span></div>
+            </div>
             <span v-else style="color:#ccc;">-</span>
           </template>
         </el-table-column>
         <el-table-column label="预分配团队" min-width="180">
           <template #default="{row}">
-            <div style="display:flex;flex-wrap:wrap;gap:2px;cursor:pointer;" @click="isAdmin && showTeamAllocEdit(row)">
+            <div style="display:flex;flex-wrap:wrap;gap:2px;">
               <span v-if="row.allocatedTeams && row.allocatedTeams.length">
                 <el-tag v-for="t in row.allocatedTeams" :key="t.team_id" size="small"
                   :style="{background: t.team_color+'22', color: t.team_color, borderColor: t.team_color+'44', margin:'2px'}">
@@ -68,6 +114,7 @@
               <el-button size="small" type="success" @click="showQuickReserve(row)">预约</el-button>
               <el-button size="small" type="danger" v-if="isAdmin" @click="handleDeletePlatform(row)">删除</el-button>
               <el-select
+                v-if="isAdmin"
                 v-model="row.status"
                 size="small"
                 :style="{width:'100px'}"
@@ -79,6 +126,7 @@
                 <el-option label="使用中" value="in_use" />
                 <el-option label="维护中" value="maintenance" />
               </el-select>
+              <el-tag v-else :type="row.status === 'idle' ? 'success' : row.status === 'in_use' ? 'warning' : 'danger'" size="small">{{ {idle:'空闲',in_use:'使用中',maintenance:'维护中'}[row.status] || row.status }}</el-tag>
             </div>
           </template>
         </el-table-column>
@@ -144,19 +192,15 @@
             <div style="margin-bottom:8px;">
               <el-button size="small" type="primary" @click="addChipForPlatform(detailPlatform.id)" :icon="Plus">添加芯片</el-button>
             </div>
-            <el-table :data="detailChips" size="small" v-if="detailChips.length">
-              <el-table-column prop="slot" label="槽位" width="80" />
-              <el-table-column prop="serial" label="序列号" width="180" />
-              <el-table-column prop="type" label="芯片型号" width="140" />
-              <el-table-column label="状态" width="90">
+            <el-table :data="detailChips" size="small" v-if="detailChips.length" style="width:100%;">
+              <el-table-column label="平台" width="70">
                 <template #default="{row}">
-                  <el-tag :type="row.status === 'idle' ? 'info' : row.status === 'testing' ? 'warning' : row.status === 'done' ? 'success' : 'danger'" size="small">
-                    {{ {idle:'空闲',testing:'测试中',done:'已完成',failed:'失败'}[row.status] || row.status }}
-                  </el-tag>
+                  <span>{{ detailPlatform?.label }}</span>
                 </template>
               </el-table-column>
-              <el-table-column prop="remark" label="备注" min-width="120" show-overflow-tooltip />
-              <el-table-column label="操作" width="100">
+              <el-table-column prop="asic_id" label="ASIC ID" width="200" show-overflow-tooltip />
+              <el-table-column prop="type" label="芯片型号" width="160" />
+              <el-table-column label="操作" width="130">
                 <template #default="{row}">
                   <el-button size="small" text type="primary" @click="editChipInDetail(row)">编辑</el-button>
                   <el-button size="small" text type="danger" @click="delChipInDetail(row)">删除</el-button>
@@ -504,6 +548,25 @@ const sortedPlatforms = computed(() => {
     return na - nb
   })
 })
+
+async function handleTypeChange(row, val) {
+  try {
+    const res = await fetch('/api/platforms/' + row.id, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: val })
+    })
+    if (!res.ok) throw new Error((await res.json()).error)
+  } catch(e) { console.error(e) }
+}
+
+async function handleLocationChange(row, val) {
+  row.location = val
+  try {
+    const { updatePlatformConfig } = await import('@/api')
+    await updatePlatformConfig(row.id, row.config || {}, val)
+  } catch(e) { console.error(e) }
+}
 
 const detailVisible = ref(false)
 const detailPlatform = ref(null)

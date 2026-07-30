@@ -1,16 +1,15 @@
 {
-  "name": "jira-testcase-manager",
+  "name": "hardware-reservation-platform",
   "version": "1.0.0",
-  "description": "JIRA Test Case Management - Test Plan / Task / Sub-task status management",
-  "main": "server.js",
+  "description": "硬件资源预约平台 - Bringup BU 14天团队分配管理",
+  "private": true,
   "scripts": {
-    "start": "node server.js",
-    "dev": "node server.js"
+    "start": "node server/src/index.js",
+    "build": "cd client && npm run build"
   },
   "dependencies": {
     "express": "^4.18.0",
-    "cookie-parser": "^1.4.6",
-    "express-rate-limit": "^7.1.0",
-    "bcryptjs": "^2.4.3"
+    "cors": "^2.8.5",
+    "better-sqlite3": "^11.0.0"
   }
 }
