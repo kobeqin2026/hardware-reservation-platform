@@ -101,13 +101,27 @@ cd client && npm run build
 
 ## 默认用户
 
-| 用户名 | 密码 | 角色 | 说明 |
-|--------|------|------|------|
-| admin | admin123 | 管理员 | 全权限 |
-| board | board123 | Domain Owner | 查看+预约 |
-| jtag | jtag123 | Domain Owner | 查看+预约 |
-| mbist | mbist123 | Domain Owner | 查看+预约 |
-| ...各团队名 | {teamId}123 | Domain Owner | 同上 |
+| 用户名 | 密码 | 角色 | 显示名 |
+|--------|------|------|--------|
+| admin | admin123 | 管理员 | 管理员 |
+| kobe | kobe123 | 管理员 | Kobe |
+| board | board123 | Domain Owner | Board |
+| diag | diag123 | Domain Owner | Diag |
+| ethernet | ethernet123 | Domain Owner | Ethernet |
+| firmware | firmware123 | Domain Owner | Firmware |
+| hbm | hbm123 | Domain Owner | HBM |
+| jtag | jtag123 | Domain Owner | JTAG |
+| kmd | kmd123 | Domain Owner | KMD |
+| mbist | mbist123 | Domain Owner | MBIST |
+| pcie | pcie123 | Domain Owner | PCIe |
+| ppo | ppo123 | Domain Owner | PPO |
+| slt | slt123 | Domain Owner | SLT |
+| swci | swci123 | Domain Owner | SWCI |
+| swmodel | swmodel123 | Domain Owner | SWModel |
+| swtool | swtool123 | Domain Owner | SWTOOL |
+| ucie | ucie123 | Domain Owner | UCIe |
+| umd | umd123 | Domain Owner | UMD |
+| video | video123 | Domain Owner | Video |
 
 ## 团队分配操作流程
 
