@@ -178,8 +178,8 @@ function initTables() {
         db.exec("ALTER TABLE platforms ADD COLUMN project TEXT NOT NULL DEFAULT 'BR2x6'");
         console.log('[migrate] added project column to platforms');
       }
-      // 设置所有现有平台为 BR2x6
-      db.exec("UPDATE platforms SET project='BR2x6' WHERE project IS NULL OR project=''");
+      // 设置所有现有平台为 BR288Y
+      db.exec("UPDATE platforms SET project='BR288Y' WHERE project IS NULL OR project=''");
 
       // 为 chips 表添加新列 (ASIC ID, UUID, MBist, FT, SLT)
       const chipCols = db.prepare("PRAGMA table_info('chips')").all();
@@ -399,7 +399,7 @@ function initTables() {
     console.error('[DB] Error loading day_allocations export:', e.message);
   }
 
-  // 同步项目到 projects 表
+  // 同步项目到 projects 表（仅首次）
   db.exec(`INSERT OR IGNORE INTO projects (name) SELECT DISTINCT project FROM platforms WHERE project IS NOT NULL AND project!=''`);
 
   console.log('[DB] Seed data loaded successfully');
