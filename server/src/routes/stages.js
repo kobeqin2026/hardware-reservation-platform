@@ -44,6 +44,56 @@ router.put('/:id', (req, res) => {
     db.prepare("INSERT OR REPLACE INTO system_config (key, value) VALUES ('bringup_end', ?)").run(bringupEnd);
   }
 
+  // 如果 bringup 日期变化且当前是 BU 阶段，重建 day_allocations 以匹配新日期
+  if (bringupStart !== undefined || bringupEnd !== undefined) {
+    const finalStart = bringupStart ?? db.prepare("SELECT value FROM system_config WHERE key='bringup_start'").get()?.value;
+    const finalEnd = bringupEnd ?? db.prepare("SELECT value FROM system_config WHERE key='bringup_end'").get()?.value;
+    if (finalStart && finalEnd) {
+      const sm = finalStart.split('-'), em = finalEnd.split('-');
+      const s = new Date(2026, +sm[0]-1, +sm[1]);
+      const e = new Date(2026, +em[0]-1, +em[1]);
+      const days = []; const c = new Date(s);
+      while (c <= e) { days.push(new Date(c).getTime()); c.setDate(c.getDate()+1); }
+      
+      // 从固化文件读取 day_allocations 模板数据
+      const fs = require('fs');
+      const path = require('path');
+      const dataPath = path.join(__dirname, '..', '..', 'data', 'day_allocations_export.json');
+      let templateRows = [];
+      if (fs.existsSync(dataPath)) {
+        templateRows = JSON.parse(fs.readFileSync(dataPath, 'utf8'));
+        console.log('[stages] Loaded', templateRows.length, 'template rows from export file');
+      } else {
+        // 如果文件不存在，从数据库现有数据作为模板
+        templateRows = db.prepare("SELECT platform_id, team_id FROM day_allocations WHERE stage_id='BU' GROUP BY platform_id, team_id").all();
+        console.log('[stages] Using', templateRows.length, 'existing allocations as template');
+      }
+      
+      // 清除当前 BU 的 day_allocations
+      db.prepare("DELETE FROM day_allocations WHERE stage_id='BU'").run();
+      
+      // 根据模板和天数重建
+      const ins = db.prepare("INSERT OR IGNORE INTO day_allocations (platform_id, date_stamp, team_id, stage_id) VALUES (?,?,?,?)");
+      // 从模板建立 platform -> teams 映射
+      const platTeams = {};
+      for (const r of templateRows) {
+        const pid = r.platform_id;
+        if (!platTeams[pid]) platTeams[pid] = new Set();
+        platTeams[pid].add(r.team_id || r.teamId);
+      }
+      let inserted = 0;
+      for (const pid of Object.keys(platTeams)) {
+        for (const teamId of platTeams[pid]) {
+          for (const ds of days) {
+            ins.run(pid, ds, teamId);
+            inserted++;
+          }
+        }
+      }
+      console.log('[stages] day_allocations rebuilt for new date range:', finalStart, '~', finalEnd, '=', inserted, 'rows');
+    }
+  }
+
   res.json({ success: true });
 });
 

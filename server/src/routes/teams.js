@@ -77,6 +77,9 @@ router.put('/allocate', (req, res) => {
 router.get('/day-allocations', (req, res) => {
   const db = getDB();
   const rows = db.prepare("SELECT * FROM day_allocations WHERE stage_id='BU'").all();
+  res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+  res.set('Pragma', 'no-cache');
+  res.set('Expires', '0');
   res.json(rows);
 });
 
@@ -85,10 +88,9 @@ router.put('/day-allocate', (req, res) => {
   const { platformId, dateStamp, teamId } = req.body;
   if (!platformId || !dateStamp || !teamId) return res.status(400).json({ error: 'platformId, dateStamp, teamId required' });
   const db = getDB();
-  db.prepare(`
-    INSERT INTO day_allocations (platform_id, date_stamp, team_id) VALUES (?,?,?)
-    ON CONFLICT(platform_id, date_stamp, stage_id) DO UPDATE SET team_id=excluded.team_id, updated_at=CURRENT_TIMESTAMP
-  `).run(platformId, dateStamp, teamId);
+  // 先删除该 cell 的旧分配，再插入新的（避免唯一约束冲突）
+  db.prepare("DELETE FROM day_allocations WHERE platform_id=? AND date_stamp=? AND stage_id='BU'").run(platformId, dateStamp);
+  db.prepare("INSERT INTO day_allocations (platform_id, date_stamp, team_id, stage_id) VALUES (?,?,?,'BU')").run(platformId, dateStamp, teamId);
   res.json({ success: true });
 });
 

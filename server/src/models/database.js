@@ -108,6 +108,18 @@ function initTables() {
       updated_at TEXT DEFAULT (datetime('now','localtime'))
     );
 
+    -- 团队分配细粒度存储（按平台+天+团队）
+    CREATE TABLE IF NOT EXISTS day_allocations (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      platform_id TEXT NOT NULL,
+      date_stamp INTEGER NOT NULL,
+      team_id TEXT NOT NULL,
+      stage_id TEXT DEFAULT 'BU',
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(platform_id, date_stamp, team_id, stage_id)
+    );
+
     -- 当前激活的阶段
     CREATE TABLE IF NOT EXISTS system_config (
       key TEXT PRIMARY KEY,
@@ -128,6 +140,14 @@ function initTables() {
       const chipNullable = db.prepare("PRAGMA table_info('chips')").all().find(c => c.name === 'platform_id');
       if (chipNullable && chipNullable.notnull) {
         console.log('[migrate] relaxing chips.platform_id to allow NULL');
+        // 新数据库直接 ALTER 列，不重建表
+        const colCount = db.prepare("PRAGMA table_info('chips')").all().length;
+        if (colCount < 10) {
+          for (const col of ['asic_id','uuid','mbist_result','ft_status','slt_status']) {
+            try { db.exec("ALTER TABLE chips ADD COLUMN "+col+" TEXT DEFAULT ''"); } catch(e) {}
+          }
+          return;
+        }
         db.pragma('foreign_keys = OFF');
         db.exec(`
           CREATE TABLE IF NOT EXISTS chips_new (
@@ -214,6 +234,7 @@ function initTables() {
     ['ucie',     'UCIe',     'UCIe',     'ucie',     '#9C27B0'],
     ['slt',      'SLT',      'SLT',      'slt',      '#E91E63'],
     ['ppo',      'PPO',      'PPO',      'ppo',      '#795548'],
+    ['mbist',    'MBIST',    'MBIST',    'mbist',    '#FF6F00'],
     ['swci',     'SWCI',     'SWCI',     'swci',     '#607D8B'],
     ['swmodel',  'SWModel',  'SWModel',  'swmodel',  '#00BCD4'],
     ['swtool',   'SWTOOL',   'SWTOOL',   'swtool',   '#8BC34A'],
@@ -234,16 +255,24 @@ function initTables() {
   const insertAlloc = db.prepare('INSERT INTO stage_allocations (stage_id, team_id, platforms, slot_mode, priority) VALUES (?, ?, ?, ?, ?)');
 
   const ALLOC = [
-    // BU — 所有团队分配所有15个平台
-    { s: 'BU', t: 'board',    p: 'BU1,BU2,BU3,BU4,BU5,BU6,BU7,BU8,BU9,BU10,BU11,BU12,BU13,BU14,BU15', m: 'shared', r: 0 },
-    { s: 'BU', t: 'jtag',     p: 'BU1,BU2,BU3,BU4,BU5,BU6,BU7,BU8,BU9,BU10,BU11,BU12,BU13,BU14,BU15', m: 'shared', r: 0 },
-    { s: 'BU', t: 'firmware', p: 'BU1,BU2,BU3,BU4,BU5,BU6,BU7,BU8,BU9,BU10,BU11,BU12,BU13,BU14,BU15', m: 'shared', r: 1 },
-    { s: 'BU', t: 'pcie',     p: 'BU1,BU2,BU3,BU4,BU5,BU6,BU7,BU8,BU9,BU10,BU11,BU12,BU13,BU14,BU15', m: 'shared', r: 1 },
-    { s: 'BU', t: 'hbm',      p: 'BU1,BU2,BU3,BU4,BU5,BU6,BU7,BU8,BU9,BU10,BU11,BU12,BU13,BU14,BU15', m: 'shared', r: 1 },
-    { s: 'BU', t: 'ucie',     p: 'BU1,BU2,BU3,BU4,BU5,BU6,BU7,BU8,BU9,BU10,BU11,BU12,BU13,BU14,BU15', m: 'shared', r: 1 },
-    { s: 'BU', t: 'ethernet', p: 'BU1,BU2,BU3,BU4,BU5,BU6,BU7,BU8,BU9,BU10,BU11,BU12,BU13,BU14,BU15', m: 'shared', r: 1 },
-    { s: 'BU', t: 'diag',     p: 'BU1,BU2,BU3,BU4,BU5,BU6,BU7,BU8,BU9,BU10,BU11,BU12,BU13,BU14,BU15', m: 'shared', r: 1 },
-    { s: 'BU', t: 'swtool',   p: 'BU1,BU2,BU3,BU4,BU5,BU6,BU7,BU8,BU9,BU10,BU11,BU12,BU13,BU14,BU15', m: 'shared', r: 1 },
+    // BU — 按实际团队分配（非全部）
+    { s: 'BU', t: 'board',    p: 'BU1,BU2,BU3,BU5', m: 'shared', r: 0 },
+    { s: 'BU', t: 'diag',     p: 'BU13,BU14', m: 'shared', r: 1 },
+    { s: 'BU', t: 'ethernet', p: 'BU12', m: 'shared', r: 1 },
+    { s: 'BU', t: 'firmware', p: 'BU1,BU4,BU7,BU10,BU15', m: 'shared', r: 1 },
+    { s: 'BU', t: 'hbm',      p: 'BU1,BU2,BU3,BU5,BU8,BU13', m: 'shared', r: 1 },
+    { s: 'BU', t: 'jtag',     p: 'BU2,BU4,BU9,BU11', m: 'shared', r: 0 },
+    { s: 'BU', t: 'kmd',      p: 'BU6,BU10,BU14', m: 'shared', r: 1 },
+    { s: 'BU', t: 'mbist',    p: 'BU1,BU3,BU7,BU9,BU11,BU15', m: 'shared', r: 1 },
+    { s: 'BU', t: 'pcie',     p: 'BU1,BU4,BU6,BU10,BU12', m: 'shared', r: 1 },
+    { s: 'BU', t: 'ppo',      p: 'BU5,BU8,BU13', m: 'shared', r: 1 },
+    { s: 'BU', t: 'slt',      p: 'BU7,BU9,BU14', m: 'shared', r: 1 },
+    { s: 'BU', t: 'swci',     p: 'BU2,BU6,BU11,BU15', m: 'shared', r: 1 },
+    { s: 'BU', t: 'swmodel',  p: 'BU3,BU8,BU12', m: 'shared', r: 1 },
+    { s: 'BU', t: 'swtool',   p: 'BU4,BU5,BU9,BU10,BU14', m: 'shared', r: 1 },
+    { s: 'BU', t: 'ucie',     p: 'BU1,BU6,BU11,BU15', m: 'shared', r: 1 },
+    { s: 'BU', t: 'umd',      p: 'BU2,BU7,BU12,BU13', m: 'shared', r: 1 },
+    { s: 'BU', t: 'video',    p: 'BU3,BU4,BU8,BU14', m: 'shared', r: 1 },
     // FE
     { s: 'FE', t: 'board',    p: 'BU1,BU2,BU3,BU4,BU5,BU6,BU7,BU8,BU9,BU10,BU11,BU12,BU13,BU14,BU15', m: 'shared', r: 0 },
     { s: 'FE', t: 'jtag',     p: 'BU1,BU2,BU3,BU4,BU5,BU6,BU7,BU8,BU9,BU10,BU11,BU12,BU13,BU14,BU15', m: 'shared', r: 0 },
@@ -294,6 +323,81 @@ function initTables() {
 
   // 设置默认阶段为BU
   db.prepare('INSERT INTO system_config (key, value) VALUES (?, ?)').run('current_stage', 'BU');
+
+  // 从固化的 JSON 文件导入 day_allocations 数据（不受代码改动影响）
+  // 如果 JSON 文件存在，用它来初始化；否则用旧的硬编码 MATRIX 兜底
+  try {
+    const fs = require('fs');
+    const dataPath = path.join(__dirname, '..', '..', 'data', 'day_allocations_export.json');
+    const configPath = path.join(__dirname, '..', '..', 'data', 'bringup_config.json');
+    
+    if (fs.existsSync(dataPath) && fs.existsSync(configPath)) {
+      const exportedRows = JSON.parse(fs.readFileSync(dataPath, 'utf8'));
+      const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+      
+      // 检查数据库是否已有数据
+      const da = db.prepare("SELECT COUNT(*) as c FROM day_allocations").get().c;
+      if (da === 0) {
+        const ins = db.prepare("INSERT OR IGNORE INTO day_allocations (platform_id, date_stamp, team_id, stage_id) VALUES (?,?,?,?)");
+        const txn = db.transaction(() => {
+          for (const row of exportedRows) {
+            ins.run(row.platform_id, row.date_stamp, row.team_id, row.stage_id || 'BU');
+          }
+        });
+        txn();
+        console.log('[DB] day_allocations loaded from export file:', exportedRows.length, 'rows');
+      }
+      
+      // 设置 bringup 日期范围（如果还没有设置）
+      const existingStart = db.prepare("SELECT value FROM system_config WHERE key='bringup_start'").get();
+      if (!existingStart && config.bringupStart) {
+        db.prepare("INSERT OR REPLACE INTO system_config (key, value) VALUES ('bringup_start', ?)").run(config.bringupStart);
+        db.prepare("INSERT OR REPLACE INTO system_config (key, value) VALUES ('bringup_end', ?)").run(config.bringupEnd);
+        console.log('[DB] Bringup range set to:', config.bringupStart, '~', config.bringupEnd);
+      }
+    } else {
+      // fallback: 旧的硬编码 MATRIX（仅首次初始化）
+      const bs = '09-28', be = '10-11';
+      const s = new Date(2026, 8, 28), e = new Date(2026, 9, 11);
+      const days = []; const c2 = new Date(s);
+      while (c2 <= e) { days.push(new Date(c2).getTime()); c2.setDate(c2.getDate()+1); }
+      const da = db.prepare("SELECT COUNT(*) as c FROM day_allocations").get().c;
+      if (da === 0) {
+        const MATRIX = [
+          ['board','board','board','board','slt','slt','board','board','board','board','board','board','board','board'],
+          ['board','board','kmd','kmd','kmd','kmd','kmd','kmd','kmd','kmd','kmd','kmd','kmd','kmd'],
+          ['jtag','jtag','jtag','jtag','diag','swmodel','swmodel','swmodel','swmodel','swmodel','swmodel','swmodel','swmodel','swmodel'],
+          ['jtag','jtag','jtag','jtag','jtag','swmodel','swmodel','swmodel','swmodel','swmodel','swmodel','swmodel','swmodel','swmodel'],
+          ['firmware','firmware','firmware','slt','slt','swmodel','ppo','ppo','ppo','ppo','ppo','ppo','ppo','ppo'],
+          ['swtool','swtool','ucie','ucie','slt','slt','slt','slt','slt','slt','slt','slt','slt','slt'],
+          ['pcie','pcie','pcie','pcie','pcie','pcie','pcie','pcie','pcie','pcie','pcie','pcie','pcie','pcie'],
+          ['pcie','pcie','pcie','pcie','pcie','swmodel','swmodel','swmodel','swmodel','swmodel','swmodel','swmodel','swmodel','swmodel'],
+          ['hbm','hbm','hbm','hbm','hbm','hbm','hbm','hbm','hbm','hbm','hbm','hbm','hbm','hbm'],
+          ['hbm','hbm','hbm','hbm','video','video','hbm','hbm','hbm','hbm','hbm','hbm','hbm','hbm'],
+          ['ucie','ucie','ucie','ucie','ucie','ucie','ucie','ucie','ucie','ucie','ucie','ucie','ucie','ucie'],
+          ['ethernet','ethernet','ethernet','ethernet','ethernet','ethernet','ethernet','ethernet','ethernet','ethernet','ethernet','ethernet','ethernet','ethernet'],
+          ['diag','diag','diag','diag','diag','diag','diag','diag','diag','diag','diag','diag','diag','diag'],
+          ['diag','diag','umd','umd','umd','umd','umd','','swci','swci','swci','swci','swci','swci'],
+          ['mbist','ethernet','ethernet','ethernet','ethernet','ethernet','ethernet','ethernet','ethernet','ethernet','ethernet','ethernet','ethernet','ethernet'],
+        ];
+        const ins = db.prepare("INSERT OR IGNORE INTO day_allocations (platform_id, date_stamp, team_id, stage_id) VALUES (?,?,?,?)");
+        const txn = db.transaction(() => {
+          for (let bi = 0; bi < 15; bi++) {
+            const pid = 'BU' + (bi + 1);
+            for (let di = 0; di < 14; di++) {
+              const t = MATRIX[bi][di].trim().toLowerCase();
+              if (!t) continue;
+              ins.run(pid, days[di], t);
+            }
+          }
+        });
+        txn();
+        console.log('[DB] day_allocations seeded (fallback MATRIX):', db.prepare("SELECT COUNT(*) as c FROM day_allocations").get().c);
+      }
+    }
+  } catch (e) {
+    console.error('[DB] Error loading day_allocations export:', e.message);
+  }
 
   // 同步项目到 projects 表
   db.exec(`INSERT OR IGNORE INTO projects (name) SELECT DISTINCT project FROM platforms WHERE project IS NOT NULL AND project!=''`);

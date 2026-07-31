@@ -37,7 +37,7 @@ router.get('/overview', (req, res) => {
 
 // 创建预约 (团队使用平台)
 router.post('/reserve', (req, res) => {
-  const { teamId, platformId, purpose, owner, stageId } = req.body;
+  const { teamId, platformId, purpose, owner, stageId, isAdmin } = req.body;
   if (!teamId || !platformId) return res.status(400).json({ error: 'teamId and platformId required' });
 
   const db = getDB();
@@ -48,8 +48,13 @@ router.post('/reserve', (req, res) => {
 
   const currentStage = stageId || db.prepare("SELECT value FROM system_config WHERE key='current_stage'").get()?.value || 'BU';
 
-  // 检查团队在当前阶段是否有此平台配额
-  const alloc = db.prepare('SELECT * FROM stage_allocations WHERE stage_id=? AND team_id=?').get(currentStage, teamId);
+  // 非 admin：只能预约自己的团队已预分配的平台
+  if (!isAdmin) {
+    const alloc = db.prepare('SELECT COUNT(*) as c FROM day_allocations WHERE platform_id=? AND team_id=? AND stage_id=?').get(platformId, teamId, currentStage);
+    if (!alloc || alloc.c === 0) {
+      return res.status(403).json({ error: '该平台未预分配给您的团队，请联系管理员预约' });
+    }
+  }
 
   db.prepare(`
     INSERT INTO reservations (team_id, platform_id, stage_id, purpose, owner, status)
