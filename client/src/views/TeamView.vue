@@ -141,7 +141,12 @@ const dayRange = computed(() => {
   return d
 })
 
-const actRows = computed(() => activeRes.value.map(r => r.platform_id))
+const actRows = computed(() => {
+  const fromRes = activeRes.value.map(r => r.platform_id)
+  const fromStatus = activePlatforms.value.filter(pid => !fromRes.includes(pid))
+  return [...fromRes, ...fromStatus]
+})
+const activePlatforms = ref([])
 
 const endDateStr = computed(() => {
   if (!pickDate.value) return ''
@@ -255,6 +260,9 @@ async function loadData() {
     allocations.value = o.data?.allocations || []
     allTeams.value = o.data?.teams || []
     activeRes.value = o.data?.activeReservations || []
+    // 获取 in_use 状态的平台
+    const platRes = await fetch('/api/platforms').then(r=>r.json())
+    activePlatforms.value = (platRes.platforms||[]).filter(p => p.status === 'in_use').map(p => p.id)
     // 从 day_allocations 填充 grid
     const g = {}
     for (const daRow of da) {

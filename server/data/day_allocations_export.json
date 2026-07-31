@@ -1,0 +1,1532 @@
+[
+  {
+    "platform_id": "BU1",
+    "date_stamp": 1790524800000,
+    "team_id": "board",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU1",
+    "date_stamp": 1790611200000,
+    "team_id": "board",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU1",
+    "date_stamp": 1790697600000,
+    "team_id": "board",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU1",
+    "date_stamp": 1790784000000,
+    "team_id": "board",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU1",
+    "date_stamp": 1790870400000,
+    "team_id": "board",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU1",
+    "date_stamp": 1790956800000,
+    "team_id": "board",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU1",
+    "date_stamp": 1791043200000,
+    "team_id": "board",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU1",
+    "date_stamp": 1791129600000,
+    "team_id": "slt",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU1",
+    "date_stamp": 1791216000000,
+    "team_id": "slt",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU1",
+    "date_stamp": 1791302400000,
+    "team_id": "iod",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU1",
+    "date_stamp": 1791388800000,
+    "team_id": "board",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU1",
+    "date_stamp": 1791475200000,
+    "team_id": "board",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU1",
+    "date_stamp": 1791561600000,
+    "team_id": "board",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU1",
+    "date_stamp": 1791648000000,
+    "team_id": "board",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU1",
+    "date_stamp": 1791734400000,
+    "team_id": "board",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU1",
+    "date_stamp": 1791820800000,
+    "team_id": "board",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU1",
+    "date_stamp": 1791907200000,
+    "team_id": "board",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU10",
+    "date_stamp": 1790524800000,
+    "team_id": "hbm",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU10",
+    "date_stamp": 1790611200000,
+    "team_id": "hbm",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU10",
+    "date_stamp": 1790697600000,
+    "team_id": "hbm",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU10",
+    "date_stamp": 1790784000000,
+    "team_id": "hbm",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU10",
+    "date_stamp": 1790870400000,
+    "team_id": "hbm",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU10",
+    "date_stamp": 1790956800000,
+    "team_id": "hbm",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU10",
+    "date_stamp": 1791043200000,
+    "team_id": "hbm",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU10",
+    "date_stamp": 1791129600000,
+    "team_id": "video",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU10",
+    "date_stamp": 1791216000000,
+    "team_id": "video",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU10",
+    "date_stamp": 1791302400000,
+    "team_id": "hbm",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU10",
+    "date_stamp": 1791388800000,
+    "team_id": "hbm",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU10",
+    "date_stamp": 1791475200000,
+    "team_id": "hbm",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU10",
+    "date_stamp": 1791561600000,
+    "team_id": "hbm",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU10",
+    "date_stamp": 1791648000000,
+    "team_id": "iod",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU10",
+    "date_stamp": 1791734400000,
+    "team_id": "iod",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU10",
+    "date_stamp": 1791820800000,
+    "team_id": "iod",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU10",
+    "date_stamp": 1791907200000,
+    "team_id": "iod",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU11",
+    "date_stamp": 1790524800000,
+    "team_id": "ucie",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU11",
+    "date_stamp": 1790611200000,
+    "team_id": "ucie",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU11",
+    "date_stamp": 1790697600000,
+    "team_id": "ucie",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU11",
+    "date_stamp": 1790784000000,
+    "team_id": "ucie",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU11",
+    "date_stamp": 1790870400000,
+    "team_id": "ucie",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU11",
+    "date_stamp": 1790956800000,
+    "team_id": "ucie",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU11",
+    "date_stamp": 1791043200000,
+    "team_id": "ucie",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU11",
+    "date_stamp": 1791129600000,
+    "team_id": "ucie",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU11",
+    "date_stamp": 1791216000000,
+    "team_id": "ucie",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU11",
+    "date_stamp": 1791302400000,
+    "team_id": "ucie",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU11",
+    "date_stamp": 1791388800000,
+    "team_id": "ucie",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU11",
+    "date_stamp": 1791475200000,
+    "team_id": "ucie",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU11",
+    "date_stamp": 1791561600000,
+    "team_id": "ucie",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU11",
+    "date_stamp": 1791648000000,
+    "team_id": "ucie",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU11",
+    "date_stamp": 1791734400000,
+    "team_id": "ucie",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU11",
+    "date_stamp": 1791820800000,
+    "team_id": "ucie",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU11",
+    "date_stamp": 1791907200000,
+    "team_id": "ucie",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU12",
+    "date_stamp": 1790524800000,
+    "team_id": "ethernet",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU12",
+    "date_stamp": 1790611200000,
+    "team_id": "ethernet",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU12",
+    "date_stamp": 1790697600000,
+    "team_id": "ethernet",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU12",
+    "date_stamp": 1790784000000,
+    "team_id": "ethernet",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU12",
+    "date_stamp": 1790870400000,
+    "team_id": "ethernet",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU12",
+    "date_stamp": 1790956800000,
+    "team_id": "ethernet",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU12",
+    "date_stamp": 1791043200000,
+    "team_id": "ethernet",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU12",
+    "date_stamp": 1791129600000,
+    "team_id": "ethernet",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU12",
+    "date_stamp": 1791216000000,
+    "team_id": "ethernet",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU12",
+    "date_stamp": 1791302400000,
+    "team_id": "ethernet",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU12",
+    "date_stamp": 1791388800000,
+    "team_id": "ethernet",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU12",
+    "date_stamp": 1791475200000,
+    "team_id": "ethernet",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU12",
+    "date_stamp": 1791561600000,
+    "team_id": "ethernet",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU12",
+    "date_stamp": 1791648000000,
+    "team_id": "ethernet",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU12",
+    "date_stamp": 1791734400000,
+    "team_id": "ethernet",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU12",
+    "date_stamp": 1791820800000,
+    "team_id": "ethernet",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU12",
+    "date_stamp": 1791907200000,
+    "team_id": "ethernet",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU13",
+    "date_stamp": 1790524800000,
+    "team_id": "diag",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU13",
+    "date_stamp": 1790611200000,
+    "team_id": "diag",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU13",
+    "date_stamp": 1790697600000,
+    "team_id": "diag",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU13",
+    "date_stamp": 1790784000000,
+    "team_id": "diag",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU13",
+    "date_stamp": 1790870400000,
+    "team_id": "diag",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU13",
+    "date_stamp": 1790956800000,
+    "team_id": "diag",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU13",
+    "date_stamp": 1791043200000,
+    "team_id": "diag",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU13",
+    "date_stamp": 1791129600000,
+    "team_id": "diag",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU13",
+    "date_stamp": 1791216000000,
+    "team_id": "diag",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU13",
+    "date_stamp": 1791302400000,
+    "team_id": "diag",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU13",
+    "date_stamp": 1791388800000,
+    "team_id": "diag",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU13",
+    "date_stamp": 1791475200000,
+    "team_id": "diag",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU13",
+    "date_stamp": 1791561600000,
+    "team_id": "diag",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU13",
+    "date_stamp": 1791648000000,
+    "team_id": "diag",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU13",
+    "date_stamp": 1791734400000,
+    "team_id": "diag",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU13",
+    "date_stamp": 1791820800000,
+    "team_id": "diag",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU13",
+    "date_stamp": 1791907200000,
+    "team_id": "diag",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU14",
+    "date_stamp": 1790524800000,
+    "team_id": "diag",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU14",
+    "date_stamp": 1790611200000,
+    "team_id": "diag",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU14",
+    "date_stamp": 1790697600000,
+    "team_id": "umd",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU14",
+    "date_stamp": 1790784000000,
+    "team_id": "diag",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU14",
+    "date_stamp": 1790870400000,
+    "team_id": "diag",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU14",
+    "date_stamp": 1790956800000,
+    "team_id": "umd",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU14",
+    "date_stamp": 1791043200000,
+    "team_id": "umd",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU14",
+    "date_stamp": 1791129600000,
+    "team_id": "umd",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU14",
+    "date_stamp": 1791216000000,
+    "team_id": "umd",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU14",
+    "date_stamp": 1791302400000,
+    "team_id": "umd",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU14",
+    "date_stamp": 1791388800000,
+    "team_id": "iod",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU14",
+    "date_stamp": 1791475200000,
+    "team_id": "iod",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU14",
+    "date_stamp": 1791561600000,
+    "team_id": "iod",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU14",
+    "date_stamp": 1791648000000,
+    "team_id": "swci",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU14",
+    "date_stamp": 1791734400000,
+    "team_id": "swci",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU14",
+    "date_stamp": 1791820800000,
+    "team_id": "swci",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU14",
+    "date_stamp": 1791907200000,
+    "team_id": "swci",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU15",
+    "date_stamp": 1790524800000,
+    "team_id": "mbist",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU15",
+    "date_stamp": 1790611200000,
+    "team_id": "ethernet",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU15",
+    "date_stamp": 1790697600000,
+    "team_id": "ethernet",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU15",
+    "date_stamp": 1790784000000,
+    "team_id": "mbist",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU15",
+    "date_stamp": 1790870400000,
+    "team_id": "ethernet",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU15",
+    "date_stamp": 1790956800000,
+    "team_id": "ethernet",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU15",
+    "date_stamp": 1791043200000,
+    "team_id": "ethernet",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU15",
+    "date_stamp": 1791129600000,
+    "team_id": "iod",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU15",
+    "date_stamp": 1791216000000,
+    "team_id": "ethernet",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU15",
+    "date_stamp": 1791302400000,
+    "team_id": "ethernet",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU15",
+    "date_stamp": 1791388800000,
+    "team_id": "ethernet",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU15",
+    "date_stamp": 1791475200000,
+    "team_id": "ethernet",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU15",
+    "date_stamp": 1791561600000,
+    "team_id": "ethernet",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU15",
+    "date_stamp": 1791648000000,
+    "team_id": "ethernet",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU15",
+    "date_stamp": 1791734400000,
+    "team_id": "ethernet",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU15",
+    "date_stamp": 1791820800000,
+    "team_id": "ethernet",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU15",
+    "date_stamp": 1791907200000,
+    "team_id": "ethernet",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU2",
+    "date_stamp": 1790524800000,
+    "team_id": "board",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU2",
+    "date_stamp": 1790611200000,
+    "team_id": "board",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU2",
+    "date_stamp": 1790697600000,
+    "team_id": "kmd",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU2",
+    "date_stamp": 1790784000000,
+    "team_id": "board",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU2",
+    "date_stamp": 1790870400000,
+    "team_id": "board",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU2",
+    "date_stamp": 1790956800000,
+    "team_id": "kmd",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU2",
+    "date_stamp": 1791043200000,
+    "team_id": "kmd",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU2",
+    "date_stamp": 1791129600000,
+    "team_id": "kmd",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU2",
+    "date_stamp": 1791216000000,
+    "team_id": "kmd",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU2",
+    "date_stamp": 1791302400000,
+    "team_id": "kmd",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU2",
+    "date_stamp": 1791388800000,
+    "team_id": "kmd",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU2",
+    "date_stamp": 1791475200000,
+    "team_id": "kmd",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU2",
+    "date_stamp": 1791561600000,
+    "team_id": "kmd",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU2",
+    "date_stamp": 1791648000000,
+    "team_id": "kmd",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU2",
+    "date_stamp": 1791734400000,
+    "team_id": "kmd",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU2",
+    "date_stamp": 1791820800000,
+    "team_id": "kmd",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU2",
+    "date_stamp": 1791907200000,
+    "team_id": "kmd",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU3",
+    "date_stamp": 1790524800000,
+    "team_id": "jtag",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU3",
+    "date_stamp": 1790611200000,
+    "team_id": "jtag",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU3",
+    "date_stamp": 1790697600000,
+    "team_id": "jtag",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU3",
+    "date_stamp": 1790784000000,
+    "team_id": "jtag",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU3",
+    "date_stamp": 1790870400000,
+    "team_id": "jtag",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU3",
+    "date_stamp": 1790956800000,
+    "team_id": "jtag",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU3",
+    "date_stamp": 1791043200000,
+    "team_id": "jtag",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU3",
+    "date_stamp": 1791129600000,
+    "team_id": "diag",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU3",
+    "date_stamp": 1791216000000,
+    "team_id": "swmodel",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU3",
+    "date_stamp": 1791302400000,
+    "team_id": "swmodel",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU3",
+    "date_stamp": 1791388800000,
+    "team_id": "swmodel",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU3",
+    "date_stamp": 1791475200000,
+    "team_id": "swmodel",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU3",
+    "date_stamp": 1791561600000,
+    "team_id": "swmodel",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU3",
+    "date_stamp": 1791648000000,
+    "team_id": "swmodel",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU3",
+    "date_stamp": 1791734400000,
+    "team_id": "swmodel",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU3",
+    "date_stamp": 1791820800000,
+    "team_id": "swmodel",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU3",
+    "date_stamp": 1791907200000,
+    "team_id": "swmodel",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU4",
+    "date_stamp": 1790524800000,
+    "team_id": "jtag",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU4",
+    "date_stamp": 1790611200000,
+    "team_id": "jtag",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU4",
+    "date_stamp": 1790697600000,
+    "team_id": "jtag",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU4",
+    "date_stamp": 1790784000000,
+    "team_id": "jtag",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU4",
+    "date_stamp": 1790870400000,
+    "team_id": "jtag",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU4",
+    "date_stamp": 1790956800000,
+    "team_id": "jtag",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU4",
+    "date_stamp": 1791043200000,
+    "team_id": "jtag",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU4",
+    "date_stamp": 1791129600000,
+    "team_id": "jtag",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU4",
+    "date_stamp": 1791216000000,
+    "team_id": "swmodel",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU4",
+    "date_stamp": 1791302400000,
+    "team_id": "swmodel",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU4",
+    "date_stamp": 1791388800000,
+    "team_id": "swmodel",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU4",
+    "date_stamp": 1791475200000,
+    "team_id": "swmodel",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU4",
+    "date_stamp": 1791561600000,
+    "team_id": "swmodel",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU4",
+    "date_stamp": 1791648000000,
+    "team_id": "swmodel",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU4",
+    "date_stamp": 1791734400000,
+    "team_id": "swmodel",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU4",
+    "date_stamp": 1791820800000,
+    "team_id": "swmodel",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU4",
+    "date_stamp": 1791907200000,
+    "team_id": "swmodel",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU5",
+    "date_stamp": 1790524800000,
+    "team_id": "firmware",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU5",
+    "date_stamp": 1790611200000,
+    "team_id": "firmware",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU5",
+    "date_stamp": 1790697600000,
+    "team_id": "firmware",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU5",
+    "date_stamp": 1790784000000,
+    "team_id": "firmware",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU5",
+    "date_stamp": 1790870400000,
+    "team_id": "firmware",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU5",
+    "date_stamp": 1790956800000,
+    "team_id": "firmware",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU5",
+    "date_stamp": 1791043200000,
+    "team_id": "iod",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU5",
+    "date_stamp": 1791129600000,
+    "team_id": "slt",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU5",
+    "date_stamp": 1791216000000,
+    "team_id": "slt",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU5",
+    "date_stamp": 1791302400000,
+    "team_id": "ppo",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU5",
+    "date_stamp": 1791388800000,
+    "team_id": "ppo",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU5",
+    "date_stamp": 1791475200000,
+    "team_id": "ppo",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU5",
+    "date_stamp": 1791561600000,
+    "team_id": "ppo",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU5",
+    "date_stamp": 1791648000000,
+    "team_id": "ppo",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU5",
+    "date_stamp": 1791734400000,
+    "team_id": "ppo",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU5",
+    "date_stamp": 1791820800000,
+    "team_id": "ppo",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU5",
+    "date_stamp": 1791907200000,
+    "team_id": "ppo",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU6",
+    "date_stamp": 1790524800000,
+    "team_id": "swtool",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU6",
+    "date_stamp": 1790611200000,
+    "team_id": "swtool",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU6",
+    "date_stamp": 1790697600000,
+    "team_id": "ucie",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU6",
+    "date_stamp": 1790784000000,
+    "team_id": "swtool",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU6",
+    "date_stamp": 1790870400000,
+    "team_id": "swtool",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU6",
+    "date_stamp": 1790956800000,
+    "team_id": "ucie",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU6",
+    "date_stamp": 1791043200000,
+    "team_id": "ucie",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU6",
+    "date_stamp": 1791129600000,
+    "team_id": "slt",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU6",
+    "date_stamp": 1791216000000,
+    "team_id": "slt",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU6",
+    "date_stamp": 1791302400000,
+    "team_id": "slt",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU6",
+    "date_stamp": 1791388800000,
+    "team_id": "slt",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU6",
+    "date_stamp": 1791475200000,
+    "team_id": "slt",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU6",
+    "date_stamp": 1791561600000,
+    "team_id": "slt",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU6",
+    "date_stamp": 1791648000000,
+    "team_id": "slt",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU6",
+    "date_stamp": 1791734400000,
+    "team_id": "slt",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU6",
+    "date_stamp": 1791820800000,
+    "team_id": "slt",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU6",
+    "date_stamp": 1791907200000,
+    "team_id": "slt",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU7",
+    "date_stamp": 1790524800000,
+    "team_id": "pcie",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU7",
+    "date_stamp": 1790611200000,
+    "team_id": "pcie",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU7",
+    "date_stamp": 1790697600000,
+    "team_id": "pcie",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU7",
+    "date_stamp": 1790784000000,
+    "team_id": "pcie",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU7",
+    "date_stamp": 1790870400000,
+    "team_id": "pcie",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU7",
+    "date_stamp": 1790956800000,
+    "team_id": "pcie",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU7",
+    "date_stamp": 1791043200000,
+    "team_id": "pcie",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU7",
+    "date_stamp": 1791129600000,
+    "team_id": "pcie",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU7",
+    "date_stamp": 1791216000000,
+    "team_id": "pcie",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU7",
+    "date_stamp": 1791302400000,
+    "team_id": "pcie",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU7",
+    "date_stamp": 1791388800000,
+    "team_id": "pcie",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU7",
+    "date_stamp": 1791475200000,
+    "team_id": "pcie",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU7",
+    "date_stamp": 1791561600000,
+    "team_id": "pcie",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU7",
+    "date_stamp": 1791648000000,
+    "team_id": "pcie",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU7",
+    "date_stamp": 1791734400000,
+    "team_id": "pcie",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU7",
+    "date_stamp": 1791820800000,
+    "team_id": "pcie",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU7",
+    "date_stamp": 1791907200000,
+    "team_id": "pcie",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU8",
+    "date_stamp": 1790524800000,
+    "team_id": "pcie",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU8",
+    "date_stamp": 1790611200000,
+    "team_id": "pcie",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU8",
+    "date_stamp": 1790697600000,
+    "team_id": "pcie",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU8",
+    "date_stamp": 1790784000000,
+    "team_id": "pcie",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU8",
+    "date_stamp": 1790870400000,
+    "team_id": "pcie",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU8",
+    "date_stamp": 1790956800000,
+    "team_id": "pcie",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU8",
+    "date_stamp": 1791043200000,
+    "team_id": "pcie",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU8",
+    "date_stamp": 1791129600000,
+    "team_id": "pcie",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU8",
+    "date_stamp": 1791216000000,
+    "team_id": "iod",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU8",
+    "date_stamp": 1791302400000,
+    "team_id": "swmodel",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU8",
+    "date_stamp": 1791388800000,
+    "team_id": "swmodel",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU8",
+    "date_stamp": 1791475200000,
+    "team_id": "swmodel",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU8",
+    "date_stamp": 1791561600000,
+    "team_id": "swmodel",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU8",
+    "date_stamp": 1791648000000,
+    "team_id": "swmodel",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU8",
+    "date_stamp": 1791734400000,
+    "team_id": "swmodel",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU8",
+    "date_stamp": 1791820800000,
+    "team_id": "swmodel",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU8",
+    "date_stamp": 1791907200000,
+    "team_id": "swmodel",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU9",
+    "date_stamp": 1790524800000,
+    "team_id": "hbm",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU9",
+    "date_stamp": 1790611200000,
+    "team_id": "hbm",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU9",
+    "date_stamp": 1790697600000,
+    "team_id": "hbm",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU9",
+    "date_stamp": 1790784000000,
+    "team_id": "hbm",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU9",
+    "date_stamp": 1790870400000,
+    "team_id": "hbm",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU9",
+    "date_stamp": 1790956800000,
+    "team_id": "hbm",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU9",
+    "date_stamp": 1791043200000,
+    "team_id": "hbm",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU9",
+    "date_stamp": 1791129600000,
+    "team_id": "hbm",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU9",
+    "date_stamp": 1791216000000,
+    "team_id": "hbm",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU9",
+    "date_stamp": 1791302400000,
+    "team_id": "hbm",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU9",
+    "date_stamp": 1791388800000,
+    "team_id": "hbm",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU9",
+    "date_stamp": 1791475200000,
+    "team_id": "hbm",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU9",
+    "date_stamp": 1791561600000,
+    "team_id": "hbm",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU9",
+    "date_stamp": 1791648000000,
+    "team_id": "hbm",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU9",
+    "date_stamp": 1791734400000,
+    "team_id": "hbm",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU9",
+    "date_stamp": 1791820800000,
+    "team_id": "hbm",
+    "stage_id": "BU"
+  },
+  {
+    "platform_id": "BU9",
+    "date_stamp": 1791907200000,
+    "team_id": "hbm",
+    "stage_id": "BU"
+  }
+]

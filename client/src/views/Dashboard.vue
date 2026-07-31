@@ -80,7 +80,7 @@
         <el-table-column prop="started_at" label="开始时间" width="150" />
         <el-table-column label="操作" width="100">
           <template #default="{row}">
-            <el-button type="danger" size="small" @click="handleRelease(row)">释放</el-button>
+            <el-button type="danger" size="small" @click="handleRelease(row)" :disabled="row._noReservation">{{ row._noReservation ? '无预约' : '释放' }}</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -228,14 +228,41 @@ function statusLabel(st) {
   return map[st] || st
 }
 
+// 从 day_allocations 查询当天该平台的预分配团队
+function getTeamFromDayAlloc(platformId) {
+  const today = new Date()
+  const ts = new Date(2026, today.getMonth(), today.getDate()).getTime()
+  const row = dayAllocCache.value.find(r => r.platform_id === platformId && r.date_stamp === ts)
+  return row ? row.team_id : '-'
+}
+const dayAllocCache = ref([])
+
 async function loadAll() {
   try {
+    // 先加载 day_allocations 缓存
+    try { dayAllocCache.value = await fetch('/api/teams/day-allocations').then(r=>r.json()) } catch(e) {}
+
     const [overviewRes, statsRes, stageRes, platformRes] = await Promise.all([
       getOverview(), getStats({ project: currentProject.value }), getStages(), getPlatforms()
     ])
 
     const ov = overviewRes.data
     activeReservations.value = ov.activeReservations || []
+    // 补充 status=in_use 但没有 reservation 的平台
+    const inUsePlats = platformRes.data.platforms.filter(p => p.status === 'in_use' && !ov.activeReservations?.some(r => r.platform_id === p.id))
+    for (const p of inUsePlats) {
+      const activeTeam = p.activeTeams?.[0]
+      activeReservations.value.push({
+        platform_id: p.id,
+        platform_label: p.label,
+        team_name: activeTeam?.team_name || getTeamFromDayAlloc(p.id),
+        team_id: activeTeam?.team_id || '-',
+        owner: activeTeam?.owner || '-',
+        purpose: '使用中' + (activeTeam ? '' : '（团队信息缺失）'),
+        started_at: '',
+        _noReservation: !activeTeam
+      })
+    }
     allTeams.value = ov.teams || []
     allPlatforms.value = ov.platforms || []
 

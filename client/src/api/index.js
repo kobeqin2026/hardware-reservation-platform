@@ -70,7 +70,8 @@ export function allocatePlatformTeams(id, teamIds) {
 }
 
 export function reservePlatform(teamId, platformId, purpose, owner) {
-  return api.post('/reservations/reserve', { teamId, platformId, purpose, owner })
+  const user = JSON.parse(localStorage.getItem('hw_reservation_user')||'{}')
+  return api.post('/reservations/reserve', { teamId, platformId, purpose, owner, isAdmin: user.role === 'admin' })
 }
 
 export function releaseReservation(reservationId) {
