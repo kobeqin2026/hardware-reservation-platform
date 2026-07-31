@@ -152,7 +152,7 @@ import {
   getPlatforms, reservePlatform, releaseReservation, getLogs
 } from '@/api'
 
-const currentProject = inject('currentProject', ref('BR2x6'))
+const currentProject = inject('currentProject', ref('BR288Y'))
 
 // 从 localStorage 获取当前登录用户
 function getCurrentUser() {
@@ -285,7 +285,7 @@ async function loadAll() {
 // ---- 计算当前项目下的平台 ----
 const projectPlatforms = computed(() => {
   return platforms.value
-    .filter(p => (p.project || 'BR2x6') === currentProject.value)
+    .filter(p => (p.project || 'BR288Y') === currentProject.value)
     .sort((a, b) => {
       const na = parseInt((a.label || a.id || '').replace(/.*?BU/gi, '').replace(/[^0-9]/g, '') || '0', 10)
       const nb = parseInt((b.label || b.id || '').replace(/.*?BU/gi, '').replace(/[^0-9]/g, '') || '0', 10)

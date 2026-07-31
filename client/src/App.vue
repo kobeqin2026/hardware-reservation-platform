@@ -1,5 +1,5 @@
 <template>
-  <el-container class="app-container" v-if="currentUser">
+  <el-container class="app-container" v-if="currentUser && projectSelected">
     <!-- 侧边栏 -->
     <el-aside width="220px" class="app-aside">
       <div class="logo-area">
@@ -70,6 +70,29 @@
       </el-main>
     </el-container>
   </el-container>
+  <!-- 登录后未选项目：显示项目选择 -->
+  <div v-else-if="currentUser && !projectSelected" style="display:flex;align-items:center;justify-content:center;height:100vh;">
+    <el-card shadow="never" style="width:420px;">
+      <template #header>
+        <span style="font-weight:600;font-size:16px;">选择项目</span>
+      </template>
+      <div v-if="allProjects.length" style="text-align:center;padding:24px 0;">
+        <div style="font-size:14px;color:#606266;margin-bottom:20px;">欢迎，{{ currentUser.name }}<br>请选择要进入的项目</div>
+        <el-select v-model="tempProject" size="large" style="width:300px;" placeholder="选择项目">
+          <el-option v-for="p in allProjects" :key="p" :label="p" :value="p" />
+        </el-select>
+        <div style="margin-top:16px;font-size:12px;color:#909399;">
+          <el-button text type="primary" size="small" @click="showNewProjectDialog=true">+ 创建新项目</el-button>
+        </div>
+      </div>
+      <div v-else style="text-align:center;padding:24px 0;">
+        <div style="font-size:14px;color:#606266;margin-bottom:20px;">暂无项目，请先创建</div>
+      </div>
+      <template #footer>
+        <el-button v-if="allProjects.length" type="primary" size="large" @click="confirmProject" style="width:100%;">进入项目</el-button>
+      </template>
+    </el-card>
+  </div>
   <!-- 未登录 -->
   <div v-else style="display:flex;align-items:center;justify-content:center;height:100vh;">
     <div style="text-align:center;">
@@ -91,33 +114,23 @@
     </div>
   </div>
 
-  <!-- 项目选择对话框（登录后） -->
-  <el-dialog v-model="showProjectPicker" title="选择项目" width="380px" :close-on-click-modal="false" :close-on-press-escape="false">
-    <div style="text-align:center;padding:16px 0;">
-      <div style="font-size:14px;color:#606266;margin-bottom:16px;">请选择要进入的项目</div>
-      <el-select v-model="tempProject" size="large" style="width:260px;" placeholder="选择项目">
-        <el-option v-for="p in allProjects" :key="p" :label="p" :value="p" />
-      </el-select>
-    </div>
-    <template #footer>
-      <el-button type="primary" size="large" @click="confirmProject" style="width:100%;">进入项目</el-button>
-    </template>
-  </el-dialog>
-
   <!-- 新建项目对话框 -->
   <el-dialog v-model="showNewProjectDialog" title="新建项目" width="450px">
     <el-form :model="newProjectForm" label-width="90px">
       <el-form-item label="项目名称">
-        <el-input v-model="newProjectForm.name" placeholder="例如: BR200" />
+        <el-input v-model="newProjectForm.name" placeholder="例如: BR300" />
       </el-form-item>
       <el-form-item label="复制来源">
-        <el-select v-model="newProjectForm.copyFrom" filterable style="width:100%" placeholder="选择已有项目（可选）">
-          <el-option label="不复制，创建空项目" value="" />
+        <el-select v-model="newProjectForm.copyFrom" filterable style="width:100%" placeholder="选择一个已有项目来复制">
+          <el-option label="不复制，空白新建" value="" />
           <el-option v-for="p in allProjects" :key="p" :label="p" :value="p" />
         </el-select>
       </el-form-item>
       <div v-if="newProjectForm.copyFrom" style="font-size:12px;color:#999;padding-left:90px;margin-top:-8px;">
         将从 {{ newProjectForm.copyFrom }} 复制所有平台和配置
+      </div>
+      <div v-else style="font-size:12px;color:#999;padding-left:90px;margin-top:-8px;">
+        创建空项目，不复制任何数据
       </div>
     </el-form>
     <template #footer>
@@ -163,8 +176,8 @@ async function doLogin() {
     loginForm.value = { name: '', password: '' }
     // 登录后加载项目列表并弹出项目选择
     await loadProjects()
-    if (allProjects.value.length > 1) {
-      showProjectPicker.value = true
+    if (!projectSelected.value) {
+      tempProject.value = currentProject.value
     }
   } catch(e) {
     ElMessage.error(e.response?.data?.error || '登录失败')
@@ -176,6 +189,8 @@ async function doLogin() {
 function handleLogout() {
   currentUser.value = null
   localStorage.removeItem('hw_reservation_user')
+  localStorage.removeItem('hw_reservation_project')
+  projectSelected.value = false
   ElMessage.info('已退出')
 }
 
@@ -204,13 +219,14 @@ async function refreshAll() {
 }
 
 // ---- 项目管理 ----
-const allProjects = ref(['BR2x6'])
-const currentProject = ref('BR2x6')
+const allProjects = ref(['BR288Y'])
+const currentProject = ref('BR288Y')
 const showNewProjectDialog = ref(false)
 const creatingProject = ref(false)
 const newProjectForm = ref({ name: '', copyFrom: '' })
 const showProjectPicker = ref(false)
 const tempProject = ref('')
+const projectSelected = ref(false)
 
 provide('currentProject', currentProject)
 
@@ -222,6 +238,12 @@ async function loadProjects() {
     // 确保 currentProject 在列表中
     if (!allProjects.value.includes(currentProject.value)) {
       currentProject.value = allProjects.value[0]
+    }
+    // 单项目自动选择
+    if (allProjects.value.length === 1 && allProjects.value[0] && !projectSelected.value) {
+      currentProject.value = allProjects.value[0]
+      localStorage.setItem('hw_reservation_project', currentProject.value)
+      projectSelected.value = true
     }
   } catch(e) { console.error(e) }
 }
@@ -238,27 +260,34 @@ function confirmProject() {
   if (!tempProject.value) { ElMessage.warning('请选择项目'); return }
   currentProject.value = tempProject.value
   localStorage.setItem('hw_reservation_project', tempProject.value)
-  showProjectPicker.value = false
+  projectSelected.value = true
   ElMessage.success(`已进入 ${tempProject.value} 项目`)
 }
 
 async function handleCreateProject() {
   const name = newProjectForm.value.name.trim()
   if (!name) { ElMessage.warning('请输入项目名称'); return }
+  const copyFrom = newProjectForm.value.copyFrom
   creatingProject.value = true
   try {
     await createProject(name)
-    const copyFrom = newProjectForm.value.copyFrom
     if (copyFrom) {
       ElMessage.info(`正在从 ${copyFrom} 复制平台数据...`)
       await copyProject(copyFrom, name)
+      ElMessage.success(`项目 ${name} 已创建（复制自 ${copyFrom}）`)
+    } else {
+      ElMessage.success(`项目 ${name} 已创建（空白项目）`)
     }
-    ElMessage.success(`项目 ${name} 已创建${copyFrom ? '（已复制数据）' : ''}`)
     showNewProjectDialog.value = false
     newProjectForm.value = { name: '', copyFrom: '' }
     await loadProjects()
+    // 自动进入新项目
     currentProject.value = name
     localStorage.setItem('hw_reservation_project', name)
+    if (!projectSelected.value) {
+      projectSelected.value = true
+    }
+    window.dispatchEvent(new CustomEvent('project-changed', { detail: name }))
   } catch(e) {
     ElMessage.error('创建失败：' + (e.response?.data?.error || e.message))
   } finally {
@@ -287,12 +316,18 @@ async function handleDeleteProject() {
   }
 }
 
-onMounted(() => {
+onMounted(async () => {
   loadStage()
-  loadProjects()
+  await loadProjects()
   // 从 localStorage 恢复之前选中的项目
   const saved = localStorage.getItem('hw_reservation_project')
-  if (saved) currentProject.value = saved
+  if (saved && allProjects.value.includes(saved)) {
+    currentProject.value = saved
+    // 已选过项目且该项目还在，直接进入
+    if (!projectSelected.value) {
+      projectSelected.value = true
+    }
+  }
 })
 </script>
 

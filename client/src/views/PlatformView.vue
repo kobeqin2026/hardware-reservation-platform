@@ -487,7 +487,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import api from '@/api'
 import { getPlatforms, getPlatformDetail, updatePlatformStatus, updatePlatformConfig, reservePlatform, getStages, createChip, updateChip, deleteChip } from '@/api'
 
-const currentProject = inject('currentProject', ref('BR2x6'))
+const currentProject = inject('currentProject', ref('BR288Y'))
 
 const platforms = ref([])
 const currentStage = ref('')
@@ -576,7 +576,7 @@ async function handleDeleteUser(row) {
 /** 按项目 + Socket 数字排序 */
 const sortedPlatforms = computed(() => {
   return [...platforms.value]
-    .filter(p => (p.project || 'BR2x6') === currentProject.value)
+    .filter(p => (p.project || 'BR288Y') === currentProject.value)
     .sort((a, b) => {
     const na = parseInt((a.label || a.id || '').replace(/.*?Socket/gi, '').replace(/[^0-9]/g, '') || '0')
     const nb = parseInt((b.label || b.id || '').replace(/.*?Socket/gi, '').replace(/[^0-9]/g, '') || '0')
@@ -960,7 +960,7 @@ async function handleCopySelect(source) {
       return
     }
     try {
-      const project = localStorage.getItem('hw_reservation_project') || 'BR2x6'
+      const project = localStorage.getItem('hw_reservation_project') || 'BR288Y'
       const cfg = _copyFromPlatform.config || {}
       await api.post('/platforms', {
         id: newId, label: newId, project,
@@ -1006,7 +1006,7 @@ async function handleNewPlatform(cmd) {
         return
       }
       try {
-        const project = localStorage.getItem('hw_reservation_project') || 'BR2x6'
+        const project = localStorage.getItem('hw_reservation_project') || 'BR288Y'
         await api.post('/platforms', { id: value, label: value, project })
         ElMessage.success(`平台 ${value} 已创建`)
         await loadData()

@@ -88,7 +88,7 @@ import { Refresh } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { getLogs } from '@/api'
 
-const currentProject = inject('currentProject', ref('BR2x6'))
+const currentProject = inject('currentProject', ref('BR288Y'))
 const logs = ref([])
 const allTeams = ref([])
 const loading = ref(false)

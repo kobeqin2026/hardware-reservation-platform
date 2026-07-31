@@ -133,7 +133,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { getAllChips, createChip, updateChip, deleteChip, getPlatforms } from '@/api'
 import api from '@/api'
 
-const currentProject = inject('currentProject', ref('BR2x6'))
+const currentProject = inject('currentProject', ref('BR288Y'))
 const chips = ref([])
 const platforms = ref([])
 const loading = ref(false)
@@ -167,7 +167,7 @@ const assigning = ref(false)
 
 /** 当前项目下的平台列表 */
 const projectPlatforms = computed(() =>
-  platforms.value.filter(p => (p.project || 'BR2x6') === currentProject.value)
+  platforms.value.filter(p => (p.project || 'BR288Y') === currentProject.value)
 )
 
 /** 按项目过滤后的芯片 + 搜索/筛选 */
