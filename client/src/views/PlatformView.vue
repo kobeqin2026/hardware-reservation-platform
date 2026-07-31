@@ -22,7 +22,7 @@
         <el-table-column prop="label" label="平台" width="70" />
         <el-table-column label="类型" width="100">
           <template #default="{row}">
-            <el-select v-if="isAdmin" v-model="row.type" size="small" style="width:88px;" @change="val => handleTypeChange(row, val)">
+            <el-select v-if="isAdmin && row._editing" v-model="row._type" size="small" style="width:88px;">
               <el-option label="Socket" value="socket" />
               <el-option label="Solder Down" value="solder_down" />
             </el-select>
@@ -31,15 +31,18 @@
         </el-table-column>
         <el-table-column label="ASIC ID" min-width="140" show-overflow-tooltip>
           <template #default="{row}">
-            <div v-if="row.chips && row.chips.length" style="line-height:1.5;">
-              <div v-for="c in row.chips" :key="c.asic_id" style="font-size:11px;">{{ c.asic_id }}</div>
+            <el-select v-if="isAdmin && row._editing" v-model="row._asic_id" size="small" style="width:100%;" placeholder="选择 ASIC ID" clearable>
+              <el-option v-for="c in (row.chips || [])" :key="c.asic_id" :label="c.asic_id" :value="c.asic_id" />
+            </el-select>
+            <div v-else-if="row._boundChips && row._boundChips.length" style="line-height:1.5;">
+              <div v-for="c in row._boundChips" :key="c.asic_id" style="font-size:11px;">{{ c.asic_id }}</div>
             </div>
             <span v-else style="color:#ccc;">-</span>
           </template>
         </el-table-column>
         <el-table-column label="实验室位置" width="120">
           <template #default="{row}">
-            <el-select v-if="isAdmin" v-model="row.location" size="small" style="width:105px;" @change="val => handleLocationChange(row, val)">
+            <el-select v-if="isAdmin && row._editing" v-model="row._location" size="small" style="width:105px;">
               <el-option label="三楼" value="三楼" />
               <el-option label="十楼" value="十楼" />
               <el-option label="健康城" value="健康城" />
@@ -49,15 +52,21 @@
         </el-table-column>
         <el-table-column label="主板" width="120">
           <template #default="{row}">
-            <span>{{ row.config?.motherboard || row.config?.cpu || '-' }}</span>
+            <el-input v-if="isAdmin && row._editing" v-model="row._motherboard" size="small" placeholder="主板/CPU" />
+            <span v-else>{{ row.config?.motherboard || row.config?.cpu || '-' }}</span>
           </template>
         </el-table-column>
         <el-table-column label="OS 信息" min-width="200">
           <template #default="{row}">
-            <div v-if="row.config?.os" style="line-height:1.5;font-size:11px;">
+            <template v-if="isAdmin && row._editing">
+              <el-input v-model="row._os_ip" size="small" placeholder="IP" style="width:100%;margin-bottom:2px;" />
+              <el-input v-model="row._os" size="small" placeholder="OS" style="width:100%;margin-bottom:2px;" />
+              <el-input v-model="row._os_user" size="small" placeholder="用户" style="width:48%;margin-right:2%;" />
+              <el-input v-model="row._os_pass" size="small" placeholder="密码" style="width:48%;" />
+            </template>
+            <div v-else-if="row.config?.os" style="line-height:1.5;font-size:11px;">
               <div style="font-family:monospace;">OS: {{ row.config.os }}</div>
               <div><span style="color:#999;">IP:</span> <span style="font-family:monospace;color:#409EFF;">{{ row.config.ip || '-' }}</span></div>
-              <div><span style="color:#999;">MAC:</span> <span style="font-family:monospace;">{{ row.config.mac || '-' }}</span></div>
               <div><span style="color:#999;">用户/密码:</span> {{ row.config.os_user || '-' }}/{{ row.config.os_pass || '-' }}</div>
             </div>
             <span v-else style="color:#ccc;">-</span>
@@ -65,20 +74,39 @@
         </el-table-column>
         <el-table-column label="BMC 信息" min-width="200">
           <template #default="{row}">
-            <div v-if="row.config?.bmc_ip" style="line-height:1.5;font-size:11px;">
+            <template v-if="isAdmin && row._editing">
+              <el-input v-model="row._bmc_ip" size="small" placeholder="BMC IP" style="width:100%;margin-bottom:2px;" />
+              <el-input v-model="row._bmc_user" size="small" placeholder="用户" style="width:48%;margin-right:2%;" />
+              <el-input v-model="row._bmc_pass" size="small" placeholder="密码" style="width:48%;" />
+            </template>
+            <div v-else-if="row.config?.bmc_ip" style="line-height:1.5;font-size:11px;">
               <div><span style="color:#999;">IP:</span> <span style="font-family:monospace;color:#409EFF;">{{ row.config.bmc_ip }}</span></div>
-              <div><span style="color:#999;">MAC:</span> <span style="font-family:monospace;">{{ row.config.bmc_mac || '-' }}</span></div>
               <div><span style="color:#999;">用户/密码:</span> {{ row.config.bmc_user || '-' }}/{{ row.config.bmc_pass || '-' }}</div>
             </div>
             <span v-else style="color:#ccc;">-</span>
           </template>
         </el-table-column>
-        <el-table-column label="JTAG 信息" min-width="180">
+        <el-table-column label="JTAG 信息" min-width="280">
           <template #default="{row}">
-            <div v-if="row.config?.jtag_enabled" style="line-height:1.5;font-size:11px;">
-              <div><span style="color:#999;">JTAG:</span> {{ row.config.jtag_name || '-' }}</div>
+            <template v-if="isAdmin && row._editing">
+              <div style="display:flex;align-items:center;gap:4px;margin-bottom:4px;">
+                <el-switch v-model="row._jtag_connected" size="small" active-text="已连接" inactive-text="未连接"
+                  @change="val => { if(!val) { row._jtag_box=''; row._jtag_ip=''; } }" />
+              </div>
+              <div v-if="row._jtag_connected" style="display:flex;flex-direction:column;gap:2px;">
+                <el-input v-model="row._jtag_box" size="small" placeholder="JTAG盒子" style="width:100%;" />
+                <el-input v-model="row._jtag_ip" size="small" placeholder="JTAG IP" style="width:100%;" />
+              </div>
+            </template>
+            <template v-else-if="isAdmin">
+              <div style="display:flex;flex-direction:column;gap:2px;font-size:11px;">
+                <div><span style="color:#999;">JTAG:</span> <span :style="{color: row.config?.jtag_box ? '#409EFF' : '#ccc'}">{{ row.config?.jtag_box || '未连接' }}</span></div>
+                <div v-if="row.config?.jtag_box"><span style="color:#999;">IP:</span> <span style="font-family:monospace;">{{ row.config.jtag_ip || '-' }}</span></div>
+              </div>
+            </template>
+            <div v-else-if="row.config?.jtag_box" style="line-height:1.5;font-size:11px;">
+              <div><span style="color:#999;">JTAG:</span> {{ row.config.jtag_box }}</div>
               <div><span style="color:#999;">IP:</span> <span style="font-family:monospace;color:#409EFF;">{{ row.config.jtag_ip || '-' }}</span></div>
-              <div><span style="color:#999;">MAC:</span> <span style="font-family:monospace;">{{ row.config.jtag_mac || '-' }}</span></div>
             </div>
             <span v-else style="color:#ccc;">-</span>
           </template>
@@ -107,14 +135,19 @@
             <span v-else style="color:#ccc;">-</span>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="320">
+        <el-table-column label="操作" width="350">
           <template #default="{row}">
-            <div style="display:flex;align-items:center;gap:4px;">
-              <el-button size="small" type="primary" @click="showDetail(row)">详情</el-button>
-              <el-button size="small" type="success" @click="showQuickReserve(row)">预约</el-button>
-              <el-button size="small" type="danger" v-if="isAdmin" @click="handleDeletePlatform(row)">删除</el-button>
+            <div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap;">
+              <template v-if="isAdmin && !row._editing">
+                <el-button size="small" type="warning" @click="startPlatformEdit(row)">编辑</el-button>
+              </template>
+              <template v-if="isAdmin && row._editing">
+                <el-button size="small" type="primary" @click="savePlatformEdit(row)">完成</el-button>
+                <el-button size="small" @click="cancelPlatformEdit(row)">取消</el-button>
+              </template>
+              <el-button size="small" type="danger" v-if="isAdmin && !row._editing" @click="handleDeletePlatform(row)">删除</el-button>
               <el-select
-                v-if="isAdmin"
+                v-if="isAdmin && !row._editing"
                 v-model="row.status"
                 size="small"
                 :style="{width:'100px'}"
@@ -126,7 +159,9 @@
                 <el-option label="使用中" value="in_use" />
                 <el-option label="维护中" value="maintenance" />
               </el-select>
-              <el-tag v-else :type="row.status === 'idle' ? 'success' : row.status === 'in_use' ? 'warning' : 'danger'" size="small">{{ {idle:'空闲',in_use:'使用中',maintenance:'维护中'}[row.status] || row.status }}</el-tag>
+              <el-tag v-if="!isAdmin" :type="row.status === 'idle' ? 'success' : row.status === 'in_use' ? 'warning' : 'danger'" size="small">{{ {idle:'空闲',in_use:'使用中',maintenance:'维护中'}[row.status] || row.status }}</el-tag>
+              <el-button size="small" type="success" @click="showQuickReserve(row)">预约</el-button>
+              <el-button size="small" type="primary" @click="showDetail(row)">详情</el-button>
             </div>
           </template>
         </el-table-column>
@@ -632,11 +667,159 @@ function statusLabel(st) {
 async function loadData() {
   try {
     const res = await getPlatforms()
-    platforms.value = res.data.platforms || []
+    platforms.value = (res.data.platforms || []).map(p => ({
+      ...p,
+      _os_ip: p.config?.ip || '',
+      _os: p.config?.os || '',
+      _os_user: p.config?.os_user || '',
+      _os_pass: p.config?.os_pass || '',
+      _bmc_ip: p.config?.bmc_ip || '',
+      _bmc_user: p.config?.bmc_user || '',
+      _bmc_pass: p.config?.bmc_pass || '',
+      _jtag_box: p.config?.jtag_box || '',
+      _jtag_ip: p.config?.jtag_ip || '',
+      _jtag_connected: !!(p.config?.jtag_box),
+      _editing: false,
+      _type: p.type || 'socket',
+      _location: p.location || '',
+      _asic_id: (p.chips || []).filter(function(c) { return c.platform_id === p.id; }).map(function(c) { return c.asic_id; })[0] || '',
+      _motherboard: p.config?.motherboard || p.config?.cpu || '',
+      _boundChips: (p.chips || []).filter(function(c) { return c.platform_id === p.id; }),
+    }))
     currentStage.value = res.data.currentStage || ''
   } catch(e) {
     ElMessage.error('加载失败')
   }
+}
+
+let _saveTimers = {}
+function saveConfigField(row, field, value) {
+  // 防抖：500ms 后保存
+  if (_saveTimers[row.id]) clearTimeout(_saveTimers[row.id])
+  _saveTimers[row.id] = setTimeout(async () => {
+    const cfg = { ...(row.config || {}) }
+    cfg[field] = value
+    try {
+      const { updatePlatformConfig } = await import('@/api')
+      await updatePlatformConfig(row.id, cfg)
+    } catch(e) {
+      console.error('save config field failed:', e)
+    }
+  }, 500)
+}
+
+function startPlatformEdit(row) {
+  row._editing = true
+  // 保存当前值以便取消时恢复
+  row._saved = {
+    _os_ip: row._os_ip,
+    _os: row._os,
+    _os_user: row._os_user,
+    _os_pass: row._os_pass,
+    _bmc_ip: row._bmc_ip,
+    _bmc_user: row._bmc_user,
+    _bmc_pass: row._bmc_pass,
+    _jtag_connected: row._jtag_connected,
+    _jtag_box: row._jtag_box,
+    _jtag_ip: row._jtag_ip,
+    _motherboard: row._motherboard,
+  }
+}
+
+async function savePlatformEdit(row) {
+  const cfg = { ...(row.config || {}) }
+  cfg.ip = row._os_ip
+  cfg.os = row._os
+  cfg.os_user = row._os_user
+  cfg.os_pass = row._os_pass
+  cfg.bmc_ip = row._bmc_ip
+  cfg.bmc_user = row._bmc_user
+  cfg.bmc_pass = row._bmc_pass
+  cfg.jtag_box = row._jtag_connected ? (row._jtag_box || '') : ''
+  cfg.jtag_ip = row._jtag_connected ? (row._jtag_ip || '') : ''
+  cfg.motherboard = row._motherboard
+  try {
+    // 保存 config
+    await updatePlatformConfig(row.id, cfg)
+    // 保存 type 和 location
+    await fetch('/api/platforms/' + row.id, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: row._type, location: row._location })
+    })
+    // 芯片绑定：如果 ASIC ID 变了，解除旧芯片绑定并绑定新芯片
+    const oldAsicId = (row._boundChips || []).map(function(c) { return c.asic_id; })[0] || ''
+    const newAsicId = row._asic_id
+    console.log('[savePlatformEdit]', row.id, 'oldAsicId:', oldAsicId, 'newAsicId:', newAsicId)
+    if (newAsicId && newAsicId !== oldAsicId) {
+      // 把之前绑定的芯片解除（如果有）
+      if (oldAsicId) {
+        await fetch('/api/chips/by-asic/' + encodeURIComponent(oldAsicId) + '/bind', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ platformId: null })
+        })
+      }
+      // 绑定新芯片到当前平台
+      await fetch('/api/chips/by-asic/' + encodeURIComponent(newAsicId) + '/bind', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ platformId: row.id })
+      })
+    }
+    row.config = cfg
+    row.type = row._type
+    row.location = row._location
+    // 更新芯片绑定显示状态
+    if (newAsicId && newAsicId !== oldAsicId) {
+      row._asic_id = newAsicId
+      row._boundChips = [{ asic_id: newAsicId, platform_id: row.id }]
+    }
+    row._editing = false
+    ElMessage.success('配置已保存')
+  } catch(e) {
+    ElMessage.error('保存失败')
+  }
+}
+
+function cancelPlatformEdit(row) {
+  if (row._saved) {
+    Object.assign(row, row._saved)
+  }
+  row._type = row.type || 'socket'
+  row._location = row.location || ''
+  row._asic_id = (row.chips || []).filter(function(c) { return c.platform_id === row.id; }).map(function(c) { return c.asic_id; })[0] || ''
+  row._motherboard = row.config?.motherboard || row.config?.cpu || ''
+  row._editing = false
+}
+
+function startJtagEdit(row) {
+  row._jtag_editing = true
+  row._jtag_connected = !!(row.config?.jtag_box)
+  row._jtag_box_saved = row._jtag_box
+  row._jtag_ip_saved = row._jtag_ip
+}
+
+async function saveJtagEdit(row) {
+  const cfg = { ...(row.config || {}) }
+  cfg.jtag_box = row._jtag_connected ? (row._jtag_box || '') : ''
+  cfg.jtag_ip = row._jtag_connected ? (row._jtag_ip || '') : ''
+  try {
+    const { updatePlatformConfig } = await import('@/api')
+    await updatePlatformConfig(row.id, cfg)
+    row.config.jtag_box = cfg.jtag_box
+    row.config.jtag_ip = cfg.jtag_ip
+    row._jtag_editing = false
+    ElMessage.success('JTAG 信息已保存')
+  } catch(e) {
+    ElMessage.error('保存失败')
+  }
+}
+
+function cancelJtagEdit(row) {
+  row._jtag_box = row._jtag_box_saved || ''
+  row._jtag_ip = row._jtag_ip_saved || ''
+  row._jtag_editing = false
 }
 
 async function loadTeams() {

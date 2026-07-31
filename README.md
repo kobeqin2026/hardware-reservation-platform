@@ -2,6 +2,48 @@
 
 ## 版本历史
 
+### v1.0.5 — 平台配置行内编辑 + 芯片绑定 + 数据固化 (2026-07-31)
+
+#### 新功能
+
+**平台列表行内编辑模式**
+- 操作列新增「编辑」按钮（黄色），admin 点击后整行进入编辑模式
+- **类型 / 实验室位置 / 主板** 变为下拉框/输入框，ASIC ID 改为从芯片数据下拉选择
+- **OS 信息**：IP、OS、用户、密码 四字段可编辑
+- **BMC 信息**：BMC IP、用户、密码 三字段可编辑
+- **JTAG 信息**：Switch 切换器（已连接/未连接）+ JTAG 盒子 + JTAG IP
+- 编辑完毕点「完成」一次性保存所有字段，点「取消」恢复修改前数据
+- Domain Owner 全程只读，只能查看
+
+**芯片绑定逻辑**
+- 一颗芯片只能绑定一个平台（通过 `platform_id` 关联）
+- 编辑平台时 ASIC ID 下拉展示已绑芯片 + 未绑定芯片，选择后点完成自动绑定
+- 切换芯片时旧芯片自动解绑
+- 非编辑模式下 ASIC ID 列只显示已绑定的芯片
+
+**Dashboard BU 平台卡片精简**
+- 卡片只显示 IP（蓝色加粗）、状态、团队名称（彩色），去除负责人和多余信息
+
+**数据固化与重建**
+- `day_allocations` 数据导出为 `server/data/day_allocations_export.json`，不受代码改动影响
+- seedData 改为优先从 JSON 文件加载，硬编码 MATRIX 降级为 fallback
+- bringup 日期变化时自动重建 `day_allocations` 以匹配新日期范围
+
+**权限细化**
+- Domain Owner（`owner` 角色）可以看到所有平台详情但完全只读
+- 类型/位置/OS/BMC/JTAG/状态/删除/新增 等编辑功能仅 admin 可见
+
+**默认用户**
+- 新增 `iod` 用户（iod/iod123, Domain Owner, 显示名 IOD）
+
+#### Bug 修复
+- `PUT /api/teams/day-allocate` 保存失败（UNIQUE 约束不匹配 → 改为 DELETE + INSERT）
+- `GET /api/teams/day-allocations` 添加 `Cache-Control: no-store` 防止缓存
+- 平台列表页 `chip.platform_id` 查询支持 NULL 值
+- 编辑保存后 `_asic_id` 和 `_boundChips` 立即刷新，无需切换页面
+
+---
+
 ### v1.0.0 — BR2xx Bringup 平台分配管理 (2026-07-30)
 
 在 v0.5.0 基础上，针对 **BU 阶段** 的 14 天团队-平台矩阵进行重构。

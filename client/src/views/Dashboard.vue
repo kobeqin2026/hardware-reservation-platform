@@ -59,7 +59,6 @@
             <div class="platform-teams" v-if="p.activeTeams && p.activeTeams.length">
               <div class="team-row" v-for="t in p.activeTeams" :key="t.team_id">
                 <span class="team-owner" :style="{color: t.team_color}">{{ t.team_name }}</span>
-                <span class="owner-name" v-if="t.owner">{{ t.owner }}</span>
               </div>
             </div>
           </div>
