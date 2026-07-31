@@ -88,4 +88,15 @@ router.delete('/:id', (req, res) => {
   res.json({ success: true });
 });
 
+// 按 ASIC ID 绑定芯片到平台（一颗芯片只能绑定一个平台）
+router.put('/by-asic/:asicId/bind', (req, res) => {
+  const { asicId } = req.params;
+  const { platformId } = req.body; // null 表示解除绑定
+  const db = getDB();
+  const chip = db.prepare('SELECT id FROM chips WHERE asic_id=?').get(asicId);
+  if (!chip) return res.status(404).json({ error: 'Chip not found' });
+  db.prepare('UPDATE chips SET platform_id=? WHERE id=?').run(platformId || null, chip.id);
+  res.json({ success: true, chipId: chip.id, platformId: platformId || null });
+});
+
 module.exports = router;

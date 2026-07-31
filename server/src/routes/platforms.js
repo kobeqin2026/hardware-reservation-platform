@@ -29,10 +29,14 @@ router.get('/', (req, res) => {
     // 查找当前阶段哪些团队分配了此平台
     const allocTeams = getAllocTeams.all(p.id, currentStage);
 
+    // 获取未绑定平台的芯片 + 已绑定到当前平台的芯片（用于 ASIC ID 下拉选择，一颗芯片只能属于一个平台）
+    const chips = db.prepare("SELECT asic_id, platform_id FROM chips WHERE (platform_id IS NULL OR platform_id=?) AND asic_id IS NOT NULL AND asic_id!=''").all(p.id);
+
     return {
       ...p,
       activeTeams,
       allocatedTeams: allocTeams,
+      chips,
       config: safeJSON(p.config_json)
     };
   });
@@ -56,6 +60,24 @@ router.get('/:id', (req, res) => {
   const chips = db.prepare('SELECT * FROM chips WHERE platform_id=? ORDER BY slot').all(platform.id);
 
   res.json({ ...platform, config: safeJSON(platform.config_json), logs, reservations, chips });
+});
+
+// 更新平台基本信息（type, location, label 等）
+router.patch('/:id', (req, res) => {
+  const { type, location, label } = req.body;
+  const db = getDB();
+  const platform = db.prepare('SELECT * FROM platforms WHERE id=?').get(req.params.id);
+  if (!platform) return res.status(404).json({ error: 'Platform not found' });
+  const updates = [];
+  const params = [];
+  if (type !== undefined) { updates.push('type=?'); params.push(type); }
+  if (location !== undefined) { updates.push('location=?'); params.push(location); }
+  if (label !== undefined) { updates.push('label=?'); params.push(label); }
+  if (updates.length) {
+    params.push(req.params.id);
+    db.prepare(`UPDATE platforms SET ${updates.join(',')}, updated_at=datetime('now','localtime') WHERE id=?`).run(...params);
+  }
+  res.json({ success: true });
 });
 
 // 更新平台状态
