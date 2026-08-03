@@ -4,6 +4,9 @@ const { getDB } = require('../models/database');
 
 // 获取所有平台（含当前占用团队）
 router.get('/', (req, res) => {
+  res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+  res.set('Pragma', 'no-cache');
+  res.set('Expires', '0');
   const db = getDB();
   const currentStage = db.prepare("SELECT value FROM system_config WHERE key='current_stage'").get()?.value || 'BU';
 
@@ -50,7 +53,12 @@ router.get('/:id', (req, res) => {
   const platform = db.prepare('SELECT * FROM platforms WHERE id=?').get(req.params.id);
   if (!platform) return res.status(404).json({ error: 'Platform not found' });
 
-  const logs = db.prepare('SELECT * FROM platform_logs WHERE platform_id=? ORDER BY created_at DESC LIMIT 20').all(platform.id);
+  const logs = db.prepare(`
+    SELECT pl.*, t.display_name as team_name
+    FROM platform_logs pl
+    LEFT JOIN teams t ON t.id = pl.team_id
+    WHERE pl.platform_id=? ORDER BY pl.created_at DESC LIMIT 20
+  `).all(platform.id);
   const reservations = db.prepare(`
     SELECT r.*, t.display_name as team_name
     FROM reservations r

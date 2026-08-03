@@ -4,6 +4,7 @@ const { getDB } = require('../models/database');
 
 // 获取dashboard统计数据（按项目过滤）
 router.get('/stats', (req, res) => {
+  res.set('Cache-Control', 'no-store');
   const db = getDB();
   const currentStage = db.prepare("SELECT value FROM system_config WHERE key='current_stage'").get()?.value || 'BU';
   const project = req.query.project || ''; // 默认不过滤，但前端会传

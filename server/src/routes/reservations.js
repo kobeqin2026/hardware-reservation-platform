@@ -4,6 +4,7 @@ const { getDB } = require('../models/database');
 
 // 获取当前阶段的分配概览 (作为主看板数据)
 router.get('/overview', (req, res) => {
+  res.set('Cache-Control', 'no-store');
   const db = getDB();
   const currentStage = db.prepare("SELECT value FROM system_config WHERE key='current_stage'").get()?.value || 'BU';
 
@@ -37,6 +38,7 @@ router.get('/overview', (req, res) => {
 
 // 创建预约 (团队使用平台)
 router.post('/reserve', (req, res) => {
+  res.set('Cache-Control', 'no-store');
   const { teamId, platformId, purpose, owner, stageId, isAdmin } = req.body;
   if (!teamId || !platformId) return res.status(400).json({ error: 'teamId and platformId required' });
 
@@ -101,6 +103,25 @@ router.get('/logs', (req, res) => {
     logs = db.prepare('SELECT pl.*, t.display_name as team_name FROM platform_logs pl LEFT JOIN teams t ON t.id=pl.team_id ORDER BY pl.created_at DESC LIMIT ?').all(parseInt(limit));
   }
   res.json(logs);
+});
+
+// 获取活跃预约摘要（按项目，用于 Gantt 图）
+router.get('/active-summary', (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  const db = getDB();
+  const project = req.query.project || 'BR288Y';
+  const rows = db.prepare(`
+    SELECT r.platform_id, p.label as platform_label, r.team_id,
+           t.display_name as team_name, t.color as team_color,
+           r.owner, r.purpose, r.started_at,
+           COALESCE(r.ended_at, datetime('now','localtime')) as ended_at
+    FROM reservations r
+    JOIN platforms p ON p.id = r.platform_id
+    JOIN teams t ON t.id = r.team_id
+    WHERE r.status='active' AND p.project=?
+    ORDER BY p.id, r.started_at
+  `).all(project);
+  res.json(rows);
 });
 
 module.exports = router;
