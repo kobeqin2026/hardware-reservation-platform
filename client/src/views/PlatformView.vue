@@ -257,7 +257,11 @@
                 </template>
               </el-table-column>
               <el-table-column prop="started_at" label="开始时间" width="150" />
-              <el-table-column prop="ended_at" label="结束时间" width="150" />
+              <el-table-column label="结束时间" width="150">
+                <template #default="{row}">
+                  <span>{{ row.ended_at || '-' }}</span>
+                </template>
+              </el-table-column>
             </el-table>
           </el-tab-pane>
 

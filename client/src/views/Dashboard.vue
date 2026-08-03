@@ -58,7 +58,7 @@
             <div class="platform-status">{{ statusLabel(p.status) }}</div>
             <div class="platform-teams" v-if="p.activeTeams && p.activeTeams.length">
               <div class="team-row" v-for="t in p.activeTeams" :key="t.team_id">
-                <span class="team-owner" :style="{color: t.team_color}">{{ t.team_name }}</span>
+                <span class="team-owner" :style="{color: teamColor(t.team_id)}">{{ t.team_name }}</span>
               </div>
             </div>
           </div>
@@ -95,7 +95,7 @@
       <el-table :data="teamPlatformStats" stripe size="small">
         <el-table-column label="团队" width="130">
           <template #default="{row}">
-            <span :style="{color: row.team_color, fontWeight: 600}">{{ row.team_name }}</span>
+            <span :style="{color: teamColor(row.team_name.toLowerCase()), fontWeight: 600}">{{ row.team_name }}</span>
           </template>
         </el-table-column>
         <el-table-column prop="total" label="占用" width="64" align="center" sortable />
@@ -119,17 +119,17 @@
     <el-dialog v-model="showReserveDialog" title="新建预约" width="500px">
       <el-form :model="reserveForm" label-width="80px">
         <el-form-item label="团队">
-          <el-select v-model="reserveForm.teamId" disabled style="width:100%">
+          <el-select v-model="reserveForm.teamId" style="width:100%" placeholder="选择团队">
             <el-option v-for="t in allTeams" :key="t.id" :label="t.display_name" :value="t.id" />
           </el-select>
         </el-form-item>
         <el-form-item label="平台">
           <el-select v-model="reserveForm.platformId" filterable style="width:100%" placeholder="选择平台">
-            <el-option v-for="p in allPlatforms" :key="p.id" :label="p.label" :value="p.id" :disabled="p.status==='maintenance'" />
+            <el-option v-for="p in projectPlatforms" :key="p.id" :label="p.label" :value="p.id" :disabled="p.status==='maintenance'" />
           </el-select>
         </el-form-item>
         <el-form-item label="负责人">
-          <el-input :model-value="currentUserRef ? currentUserRef.name : ''" disabled placeholder="自动获取" />
+          <el-input :model-value="reserveTeamOwner" disabled placeholder="自动获取" />
         </el-form-item>
         <el-form-item label="用途">
           <el-input v-model="reserveForm.purpose" type="textarea" :rows="2" placeholder="测试用途描述" />
@@ -173,11 +173,31 @@ const showReserveDialog = ref(false)
 const reserving = ref(false)
 const currentUserRef = ref(getCurrentUser())
 
+// 统一团队色卡（与 TeamView.vue 预分配保持一致）
+const TEAM_COLOR_MAP = {
+  hbm: '#F97316', ucie: '#84CC16', jtag: '#0891B2', swtool: '#0369A1',
+  board: '#DC2626', diag: '#2563EB', ethernet: '#16A34A', firmware: '#D97706',
+  kmd: '#CA8A04', mbist: '#DB2777', pcie: '#0E7490', ppo: '#65A30D',
+  slt: '#A21CAF', swci: '#0D9488', swmodel: '#BE185D', umd: '#15803D',
+  video: '#B45309',
+}
+
+function teamColor(teamId) {
+  return TEAM_COLOR_MAP[teamId] || '#409EFF'
+}
+
 const reserveForm = reactive({
   teamId: '',
   platformId: '',
   owner: '',
   purpose: ''
+})
+
+// 负责人跟随所选团队自动填充
+const reserveTeamOwner = computed(() => {
+  if (!reserveForm.teamId) return ''
+  const team = allTeams.value.find(t => t.id === reserveForm.teamId)
+  return team ? (team.owners || team.id || '').split(',')[0] : reserveForm.teamId
 })
 
 const statCards = computed(() => [
@@ -207,7 +227,7 @@ const teamPlatformStats = computed(() => {
         const platNames = myPlatforms.map(p => p.label).sort()
         return {
           team_name: t.display_name,
-          team_color: t.color || '#409EFF',
+          team_color: teamColor(t.id),
           total: myPlatforms.length,
           platforms: platNames
         }
@@ -315,18 +335,16 @@ function handlePlatformClick(p) {
   // 可扩展为跳转到平台详情
 }
 
-function openReserveDialog() {
+async function openReserveDialog() {
+  reserveForm.teamId = ''
   reserveForm.platformId = ''
   reserveForm.purpose = ''
-  // 从当前登录用户自动获取负责人和团队
+  reserveForm.owner = ''
+  // 根据登录用户名自动匹配团队（用户名=团队ID），匹配不到则为空手动选择
   const cu = currentUserRef.value
-  reserveForm.owner = cu?.name || ''
-  // 根据登录用户名自动匹配团队（用户名=团队ID）
   if (cu && cu.name) {
     const team = allTeams.value.find(t => t.id === cu.name)
     reserveForm.teamId = team ? team.id : ''
-  } else {
-    reserveForm.teamId = ''
   }
   showReserveDialog.value = true
 }
@@ -338,12 +356,16 @@ async function handleReserve() {
   }
   reserving.value = true
   try {
-    await reservePlatform(reserveForm.teamId, reserveForm.platformId, reserveForm.purpose, reserveForm.owner)
+    // 自动从选中的团队取负责人
+    const team = allTeams.value.find(t => t.id === reserveForm.teamId)
+    const owner = team ? (team.owners || '').split(',')[0] : reserveForm.teamId
+    await reservePlatform(reserveForm.teamId, reserveForm.platformId, reserveForm.purpose, owner)
     ElMessage.success('预约成功')
     showReserveDialog.value = false
     reserveForm.teamId = ''
     reserveForm.platformId = ''
     reserveForm.purpose = ''
+    reserveForm.owner = ''
     await loadAll()
   } catch(e) {
     ElMessage.error('预约失败：' + (e.response?.data?.error || e.message))

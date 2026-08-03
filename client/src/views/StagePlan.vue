@@ -75,73 +75,6 @@
       </div>
     </el-card>
 
-    <!-- 团队活动时间线（按天 - 只显示当前阶段） -->
-    <el-card shadow="never" style="margin-top:16px;">
-      <template #header>
-        <div style="display:flex;align-items:center;justify-content:space-between;">
-          <span style="font-weight:600;">团队活动时间线</span>
-          <span style="font-size:12px;color:#999;white-space:nowrap;">
-            当前阶段: {{ currentStageName }} — 共 {{ stageDays }} 天
-          </span>
-        </div>
-      </template>
-
-      <div class="day-gantt-container">
-        <!-- 月份标签 -->
-        <div class="dg-header">
-          <div class="dg-row-label">团队</div>
-          <div class="dg-months">
-            <div
-              v-for="m in stageMonthRanges"
-              :key="m.label"
-              class="dg-month-header"
-              :style="{ width: m.days * dayWidth + 'px' }"
-            >
-              {{ m.label }}
-            </div>
-          </div>
-        </div>
-        <!-- 日期头 -->
-        <div class="dg-header">
-          <div class="dg-row-label"></div>
-          <div class="dg-days">
-            <div
-              v-for="(d, idx) in stageDayRange"
-              :key="idx"
-              class="dg-day-header"
-              :class="{ 'weekend': isWeekend(d), 'today': isToday(d) }"
-              :style="{ width: dayWidth + 'px' }"
-            >
-              <div class="day-num">{{ d.getDate() }}</div>
-              <div class="day-dow">{{ ['日','一','二','三','四','五','六'][d.getDay()] }}</div>
-            </div>
-          </div>
-        </div>
-
-        <!-- 团队行 -->
-        <div
-          v-for="team in allTeams"
-          :key="team.id"
-          class="dg-row"
-        >
-          <div class="dg-row-label team-label">
-            <span :style="{ color: team.color }">{{ team.display_name }}</span>
-          </div>
-          <div class="dg-days">
-            <div
-              v-for="(d, idx) in stageDayRange"
-              :key="idx"
-              class="dg-day-cell"
-              :class="teamDayClass(team.id, d)"
-              :style="{ width: dayWidth + 'px' }"
-              :title="teamDayTitle(team.id, d)"
-            >
-            </div>
-          </div>
-        </div>
-      </div>
-    </el-card>
-
     <!-- 编辑时间对话框 -->
     <el-dialog v-model="showTimeEdit" title="编辑阶段时间" width="680px">
       <el-table :data="editStages" size="small">
@@ -167,7 +100,7 @@
         </el-table-column>
         <el-table-column label="持续(周)" width="130">
           <template #default="{row}">
-            <el-input-number v-model="row.duration_weeks" :min="1" :max="52" size="small" style="width:110px;" />
+            <el-input-number v-model="row.duration_weeks" :min="1" :max="52" size="small" style="width:110px;" @change="val => onDurationChange(row, val)" />
           </template>
         </el-table-column>
       </el-table>
@@ -233,10 +166,7 @@ const currentStage = ref('BU')
 const showTimeEdit = ref(false)
 const saving = ref(false)
 const highlightStage = ref('')
-const selectedStage = ref('')
 const selectedStageDetail = ref(null)
-
-const dayWidth = 40
 
 // ---- 周粒度 (阶段时间轴) ----
 const currentWeekNumber = computed(() => {
@@ -350,95 +280,7 @@ function handleWeekClick(stage, week) {
   }
 }
 
-// ---- 日粒度 (团队活动时间线) ----
-const refYear = 2026
-
-function weekStartDate(wn) {
-  const refWeek = 40
-  const refDate = new Date(2026, 8, 28)
-  if (wn < 10 && wn <= refWeek) {
-    const refDate2027 = new Date(2026, 11, 28)
-    const diffWeeks = wn - 1
-    const result = new Date(refDate2027)
-    result.setDate(result.getDate() + diffWeeks * 7)
-    return result
-  } else {
-    const diffWeeks = wn - refWeek
-    const result = new Date(refDate)
-    result.setDate(result.getDate() + diffWeeks * 7)
-    return result
-  }
-}
-
-const currentStageName = computed(() => {
-  const s = stages.value.find(st => st.id === currentStage.value)
-  return s ? s.name : ''
-})
-
-const stageDayRange = computed(() => {
-  const cs = stages.value.find(st => st.id === currentStage.value)
-  if (!cs || !cs.start_week) return []
-  const sw = weekNum(cs.start_week)
-  const ew = weekNum(cs.end_week)
-  if (isNaN(sw) || isNaN(ew)) return []
-  const startDate = weekStartDate(sw)
-  const endDate = weekStartDate(ew)
-  endDate.setDate(endDate.getDate() + 6)
-  const days = []
-  const cursor = new Date(startDate)
-  while (cursor <= endDate) {
-    days.push(new Date(cursor))
-    cursor.setDate(cursor.getDate() + 1)
-  }
-  return days
-})
-
-const stageDays = computed(() => stageDayRange.value.length)
-
-const stageMonthRanges = computed(() => {
-  const map = {}
-  for (const d of stageDayRange.value) {
-    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
-    if (!map[key]) map[key] = { label: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`, days: 0 }
-    map[key].days++
-  }
-  return Object.values(map)
-})
-
-function isWeekend(d) {
-  const day = d.getDay()
-  return day === 0 || day === 6
-}
-
-function isToday(d) {
-  const now = new Date()
-  return d.getFullYear() === now.getFullYear() &&
-    d.getMonth() === now.getMonth() &&
-    d.getDate() === now.getDate()
-}
-
-function teamAllocOnDate(teamId, date) {
-  const cs = stages.value.find(st => st.id === currentStage.value)
-  if (!cs) return null
-  const sd = stageData.value.find(s => s.id === cs.id)
-  if (!sd) return null
-  const alloc = sd.allocations.find(a => a.team_id === teamId && a.platforms)
-  return alloc || null
-}
-
-function teamDayClass(teamId, date) {
-  const alloc = teamAllocOnDate(teamId, date)
-  if (!alloc) return ['empty']
-  return ['active', `p${alloc.priority}`]
-}
-
-function teamDayTitle(teamId, date) {
-  const alloc = teamAllocOnDate(teamId, date)
-  if (!alloc) return ''
-  const dateStr = `${date.getMonth() + 1}/${date.getDate()}`
-  return `${currentStageName} | P${alloc.priority} | ${alloc.platforms || ''} | ${dateStr}`
-}
-
+// ---- 日粒度（已移除团队活动时间线卡片，相关函数已删除）
 function stageAllocs(stageId) {
   const sd = stageData.value.find(s => s.id === stageId)
   return sd ? sd.allocations.filter(a => a.platforms) : []
@@ -456,6 +298,38 @@ async function openTimeEdit() {
     duration_weeks: s.duration_weeks || 8
   }))
   showTimeEdit.value = true
+}
+
+function weekNumOnly(w) {
+  const m = (w || '').match(/(?:W)(\d+)/i)
+  return m ? parseInt(m[1]) : NaN
+}
+
+function onDurationChange(row, weeks) {
+  const sn = weekNumOnly(row.start_week)
+  if (isNaN(sn) || weeks <= 0) return
+  // 计算该阶段新的结束周
+  let en = sn + weeks - 1
+  row.end_week = en > 52 ? 'W' + (en - 52) : 'W' + en
+
+  // 级联更新所有后续阶段：每个阶段的 start_week = 上个阶段 end_week + 1
+  const idx = editStages.value.indexOf(row)
+  for (let i = idx + 1; i < editStages.value.length; i++) {
+    const cur = editStages.value[i]
+    const prev = editStages.value[i - 1]
+    const prevEnd = weekNumOnly(prev.end_week)
+    if (isNaN(prevEnd)) break
+    // 计算本阶段的期望开始周
+    let newStart = prevEnd + 1
+    if (newStart > 52) newStart = newStart - 52
+    cur.start_week = 'W' + newStart
+    // 根据 duration_weeks 更新结束周
+    const dur = parseInt(cur.duration_weeks)
+    if (!isNaN(dur) && dur > 0) {
+      let newEnd = newStart + dur - 1
+      cur.end_week = newEnd > 52 ? 'W' + (newEnd - 52) : 'W' + newEnd
+    }
+  }
 }
 
 async function saveStageTimes() {
