@@ -121,7 +121,7 @@ router.post('/', (req, res) => {
   if (existing) return res.status(409).json({ error: 'Platform already exists' });
 
   db.prepare("INSERT INTO platforms (id, label, project, location, config_json, status) VALUES (?, ?, ?, ?, ?, 'idle')")
-    .run(id, label, project || 'BR2x6', location || '', JSON.stringify(config || {}));
+    .run(id, label, project || 'BR288Y', location || '', JSON.stringify(config || {}));
   res.json({ success: true, id });
 });
 

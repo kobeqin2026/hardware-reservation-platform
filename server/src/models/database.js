@@ -50,7 +50,7 @@ function initTables() {
       id TEXT PRIMARY KEY,
       label TEXT NOT NULL,                -- BU1, BU2, BU3, BU4
       type TEXT NOT NULL DEFAULT 'socket' CHECK(type IN ('socket','solder_down')),
-      project TEXT NOT NULL DEFAULT 'BR2x6',  -- 所属项目
+      project TEXT NOT NULL DEFAULT 'BR288Y',  -- 所属项目
       status TEXT NOT NULL DEFAULT 'idle' CHECK(status IN ('idle','in_use','maintenance','ft_reserved','backup')),
       location TEXT DEFAULT '',
       config_json TEXT DEFAULT '{}',      -- 硬件配置
@@ -175,7 +175,7 @@ function initTables() {
       }
       const cols = db.prepare("PRAGMA table_info('platforms')").all();
       if (!cols.find(c => c.name === 'project')) {
-        db.exec("ALTER TABLE platforms ADD COLUMN project TEXT NOT NULL DEFAULT 'BR2x6'");
+        db.exec("ALTER TABLE platforms ADD COLUMN project TEXT NOT NULL DEFAULT 'BR288Y'");
         console.log('[migrate] added project column to platforms');
       }
       // 设置所有现有平台为 BR288Y
