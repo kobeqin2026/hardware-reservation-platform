@@ -84,7 +84,7 @@
       <el-date-picker v-model="pickDate" type="date" placeholder="选择起始日期"
         value-format="YYYY-MM-DD" style="width:100%;"
         :disabled-date="d => d < new Date(2026,0,1) || d > new Date(2027,11,31)" />
-      <div v-if="pickDate" style="margin-top:10px;font-size:12px;color:#606266;">
+      <div v-if="pickDate" style="margin-top:10px;font-size:12px;color:#8b93a7;">
         选定日期: <strong>{{ pickDate }}</strong><br>
         日期范围: <strong>{{ pickDate }}</strong> ~ <strong>{{ endDateStr }}</strong>
       </div>
@@ -100,7 +100,7 @@
       <el-date-picker v-model="activePickDate" type="date" placeholder="选择起始日期"
         value-format="YYYY-MM-DD" style="width:100%;"
         :disabled-date="d => d < new Date(2026,0,1) || d > new Date(2027,11,31)" />
-      <div v-if="activePickDate" style="margin-top:10px;font-size:12px;color:#606266;">
+      <div v-if="activePickDate" style="margin-top:10px;font-size:12px;color:#8b93a7;">
         选定日期: <strong>{{ activePickDate }}</strong><br>
         日期范围: <strong>{{ activePickDate }}</strong> ~ <strong>{{ activeEndDateStr }}</strong>
       </div>

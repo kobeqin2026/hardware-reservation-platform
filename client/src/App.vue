@@ -77,7 +77,7 @@
         <span style="font-weight:600;font-size:16px;">选择项目</span>
       </template>
       <div v-if="allProjects.length" style="text-align:center;padding:24px 0;">
-        <div style="font-size:14px;color:#606266;margin-bottom:20px;">欢迎，{{ currentUser.name }}<br>请选择要进入的项目</div>
+        <div style="font-size:14px;color:#8b93a7;margin-bottom:20px;">欢迎，{{ currentUser.name }}<br>请选择要进入的项目</div>
         <el-select v-model="tempProject" size="large" style="width:300px;" placeholder="选择项目">
           <el-option v-for="p in allProjects" :key="p" :label="p" :value="p" />
         </el-select>
@@ -86,7 +86,7 @@
         </div>
       </div>
       <div v-else style="text-align:center;padding:24px 0;">
-        <div style="font-size:14px;color:#606266;margin-bottom:20px;">暂无项目，请先创建</div>
+        <div style="font-size:14px;color:#8b93a7;margin-bottom:20px;">暂无项目，请先创建</div>
       </div>
       <template #footer>
         <el-button v-if="allProjects.length" type="primary" size="large" @click="confirmProject" style="width:100%;">进入项目</el-button>

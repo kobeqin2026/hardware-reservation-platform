@@ -2,7 +2,7 @@
   <div class="dashboard">
     <!-- 平台标题 -->
     <div style="text-align:center;margin-bottom:16px;">
-      <span style="font-size:22px;font-weight:700;color:#303133;">{{ currentProject }} 硬件资源预约平台</span>
+      <span style="font-size:22px;font-weight:700;color:#ffffff;">{{ currentProject }} 硬件资源预约平台</span>
     </div>
 
       <!-- 统计卡片 -->
