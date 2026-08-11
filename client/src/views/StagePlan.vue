@@ -502,7 +502,7 @@ if (typeof window !== 'undefined') {
   border-right: 1px solid #f0f0f0;
 }
 .dg-day-cell.empty {
-  background: #fff;
+  background: #1d2436;
 }
 .dg-day-cell.active {
   background: #409EFF;

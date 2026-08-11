@@ -55,6 +55,11 @@
           >
             <div class="platform-label">{{ p.label }}</div>
             <div class="platform-ip">{{ p.config?.ip || '--' }}</div>
+            <div class="platform-bmc">
+              <span class="bmc-label">BMC:</span>
+              <a v-if="p.config?.bmc_ip" class="bmc-link" :href="'http://' + p.config.bmc_ip" target="_blank" rel="noopener" @click.stop>{{ p.config.bmc_ip }}</a>
+              <span v-else class="bmc-empty">--</span>
+            </div>
             <div class="platform-status">{{ statusLabel(p.status) }}</div>
             <div class="platform-teams" v-if="p.activeTeams && p.activeTeams.length">
               <div class="team-row" v-for="t in p.activeTeams" :key="t.team_id">
@@ -108,7 +113,7 @@
           </template>
         </el-table-column>
       </el-table>
-      <div style="margin-top:12px;padding:8px 12px;background:#fefce8;border-radius:4px;font-size:12px;color:#92400e;line-height:1.5;">
+      <div style="margin-top:12px;padding:8px 12px;background:#1d2436;border:1px solid #2a3350;border-radius:4px;font-size:12px;color:#ffc53d;line-height:1.5;">
         <strong>建议：</strong>平台使用者在预约之后更改平台密码，以防被误用；释放之后将密码改回默认密码。
       </div>
     </template>
@@ -400,18 +405,18 @@ if (typeof window !== 'undefined') {
 .stat-label { font-size: 11px; color: #999; margin-top: 3px; }
 
 .platform-card {
-  border: 1px solid #e8e8e8;
+  border: 1px solid #2a3350;
   border-radius: 8px;
   padding: 12px;
   cursor: pointer;
   transition: all .2s;
-  background: #fff;
-  height: 120px;
+  background: #171d2b;
+  min-height: 120px;
   display: flex;
   flex-direction: column;
 }
 .platform-card:hover {
-  box-shadow: 0 4px 16px rgba(0,0,0,0.1);
+  box-shadow: 0 8px 30px rgba(0,0,0,.35);
   transform: translateY(-2px);
 }
 .platform-card.status-idle { border-left: 4px solid #67C23A; }
@@ -422,6 +427,11 @@ if (typeof window !== 'undefined') {
 
 .platform-label { font-size: 20px; font-weight: 700; }
 .platform-ip { font-size: 14px; color: #409EFF; font-weight: 700; margin-top: 1px; line-height: 1.3; }
+.platform-bmc { display: flex; align-items: center; gap: 4px; margin-top: 1px; line-height: 1.3; }
+.bmc-label { font-size: 11px; color: #999; flex-shrink: 0; }
+.bmc-link { font-size: 12px; font-family: monospace; font-weight: 600; color: #409EFF; text-decoration: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bmc-link:hover { text-decoration: underline; }
+.bmc-empty { font-size: 12px; color: #c0c4cc; }
 .platform-status { font-size: 11px; color: #999; margin-top: 2px; }
 .platform-teams { margin-top: 4px; display: flex; flex-wrap: wrap; gap: 2px; flex-direction: column; }
 .team-row { display: flex; align-items: center; gap: 4px; font-size: 11px; line-height: 1.4; }

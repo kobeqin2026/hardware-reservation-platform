@@ -333,7 +333,50 @@ onMounted(async () => {
 
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
-html, body, #app { height: 100%; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background: #f0f2f5; }
+
+/* ═══ kpi-portal 统一深色主题 (2026-08-10) ═══ */
+:root {
+  --bg: #0f1420; --panel: #171d2b; --panel2: #1d2436; --border: #2a3350;
+  --text: #e6e9f2; --muted: #8b93a7; --accent: #4f8cff;
+  --green: #3ddc84; --red: #ff5c5c; --yellow: #ffc53d; --purple: #b57bff; --teal: #22d3ee; --orange: #ff9f43;
+}
+html {
+  color-scheme: dark;
+  background: #0f1420;
+}
+html.dark {
+  /* Element Plus dark vars — 与 kpi-portal 令牌对齐 */
+  --el-color-primary: #4f8cff;
+  --el-color-primary-light-3: #6a9fff;
+  --el-color-primary-light-5: #8db6ff;
+  --el-color-primary-light-7: #b0ccff;
+  --el-color-primary-light-8: #c2d8ff;
+  --el-color-primary-light-9: #d4e3ff;
+  --el-color-primary-dark-2: #3d70d6;
+  --el-bg-color: #171d2b;
+  --el-bg-color-page: #0f1420;
+  --el-bg-color-overlay: #1d2436;
+  --el-fill-color: #1d2436;
+  --el-fill-color-light: #1d2436;
+  --el-fill-color-lighter: #222b42;
+  --el-fill-color-blank: #171d2b;
+  --el-fill-color-dark: #222b42;
+  --el-fill-color-darker: #2a3350;
+  --el-border-color: #2a3350;
+  --el-border-color-light: #2a3350;
+  --el-border-color-lighter: #2a3350;
+  --el-border-color-extra-light: #2a3350;
+  --el-border-color-dark: #3a4570;
+  --el-border-color-darker: #3a4570;
+  --el-text-color-primary: #e6e9f2;
+  --el-text-color-regular: #c7ccdd;
+  --el-text-color-secondary: #8b93a7;
+  --el-text-color-placeholder: #8b93a7;
+  --el-text-color-disabled: #5a6278;
+  --el-box-shadow: 0 12px 40px rgba(0,0,0,.45);
+  --el-box-shadow-light: 0 8px 30px rgba(0,0,0,.35);
+}
+html, body, #app { height: 100%; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background: #0f1420 !important; color: #e6e9f2; }
 
 .app-container { height: 100vh; }
 
@@ -379,11 +422,11 @@ html, body, #app { height: 100%; font-family: -apple-system, BlinkMacSystemFont,
 }
 
 .app-header {
-  background: #fff;
+  background: #171d2b;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  border-bottom: 1px solid #e8e8e8;
+  border-bottom: 1px solid #2a3350;
   padding: 0 24px;
   height: 56px;
 }

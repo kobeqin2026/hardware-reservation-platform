@@ -86,7 +86,7 @@
 - `GET /api/teams/day-allocations` 添加 `Cache-Control: no-store` 防止缓存
 - 平台列表页 `chip.platform_id` 查询支持 NULL 值
 - 编辑保存后 `_asic_id` 和 `_boundChips` 立即刷新，无需切换页面
-- 数据库硬编码 `BR2x6` 全部改为 `BR288Y`，避免空项目反复出现
+- 数据库硬编码 `BR2x6` 已全部改为 `BR288Y`，避免空项目反复出现
 
 ---
 
