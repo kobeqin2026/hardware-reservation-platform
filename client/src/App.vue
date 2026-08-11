@@ -432,7 +432,7 @@ html, body, #app { height: 100%; font-family: -apple-system, BlinkMacSystemFont,
 }
 
 .app-main {
-  background: #f0f2f5;
+  background: #0f1420;
   padding: 16px;
   overflow-y: auto;
 }
