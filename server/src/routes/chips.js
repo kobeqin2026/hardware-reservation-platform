@@ -2,6 +2,35 @@ const express = require('express');
 const router = express.Router();
 const { getDB } = require('../models/database');
 
+// ============ 芯片-平台 一对一绑定约束 ============
+/**
+ * 绑定芯片 chipId 到平台 platformId（platformId 为 null/'' 表示解除绑定）。
+ * 语义（双向唯一）：
+ *   1. 一台平台最多装 1 颗芯片 —— 若目标平台已安装其他芯片，自动把它移入未分配
+ *   2. 一颗芯片只属于 1 个平台 —— 芯片直接换绑（单列语义，离开原平台）
+ * 返回被顶替掉的原平台芯片 asic_id（无则 null）。
+ */
+function assignChip(db, chipId, platformId) {
+  let replacedAsic = null
+  const target = platformId || null
+  if (target) {
+    const p = db.prepare('SELECT id FROM platforms WHERE id=?').get(target)
+    if (!p) {
+      const err = new Error('平台不存在: ' + target)
+      err.status = 404
+      throw err
+    }
+    const cur = db.prepare('SELECT id, asic_id FROM chips WHERE platform_id=? AND id<>?').get(target, chipId)
+    if (cur) {
+      // 目标平台已有其他芯片 → 顶替者移入未分配
+      db.prepare("UPDATE chips SET platform_id=NULL, updated_at=datetime('now','localtime') WHERE id=?").run(cur.id)
+      replacedAsic = cur.asic_id
+    }
+  }
+  db.prepare("UPDATE chips SET platform_id=?, updated_at=datetime('now','localtime') WHERE id=?").run(target, chipId)
+  return replacedAsic
+}
+
 // 获取芯片列表
 router.get('/', (req, res) => {
   const db = getDB();
@@ -39,7 +68,17 @@ router.post('/', (req, res) => {
     VALUES (?,?,?,?,?,?,?,?,?,?,?)
   `).run(platformId || null, slot || '', serial || '', type || '', status || 'idle', remark || '', asicId || '', uuid || '', mbistResult || '', ftStatus || '', sltStatus || '');
 
-  res.json({ success: true, id: result.lastInsertRowid });
+  // 新建即绑定平台时，同样保持“一平台一芯片”
+  let replacedAsic = null
+  if (platformId) {
+    try {
+      replacedAsic = assignChip(db, result.lastInsertRowid, platformId)
+    } catch (e) {
+      return res.status(e.status || 500).json({ error: e.message })
+    }
+  }
+
+  res.json({ success: true, id: result.lastInsertRowid, replacedAsic });
 });
 
 // 更新芯片信息（可更新所属平台）
@@ -55,7 +94,15 @@ router.put('/:id', (req, res) => {
     if (!p) return res.status(404).json({ error: 'Platform not found' });
   }
 
-  // 可选的：更新 platform_id
+  // 可选的：更新 platform_id（走一对一约束，占用平台时自动把原芯片移入未分配）
+  let replacedAsic = null
+  if (platformId !== undefined && platformId !== chip.platform_id) {
+    try {
+      replacedAsic = assignChip(db, chip.id, platformId)
+    } catch (e) {
+      return res.status(e.status || 500).json({ error: e.message })
+    }
+  }
   const newPlatformId = platformId !== undefined ? (platformId || null) : chip.platform_id;
 
   db.prepare(`
@@ -88,15 +135,20 @@ router.delete('/:id', (req, res) => {
   res.json({ success: true });
 });
 
-// 按 ASIC ID 绑定芯片到平台（一颗芯片只能绑定一个平台）
+// 按 ASIC ID 绑定芯片到平台（一颗芯片只能绑定一个平台，一个平台只能装一颗芯片）
 router.put('/by-asic/:asicId/bind', (req, res) => {
   const { asicId } = req.params;
-  const { platformId } = req.body; // null 表示解除绑定
+  const { platformId } = req.body; // null/空 表示解除绑定
   const db = getDB();
   const chip = db.prepare('SELECT id FROM chips WHERE asic_id=?').get(asicId);
   if (!chip) return res.status(404).json({ error: 'Chip not found' });
-  db.prepare('UPDATE chips SET platform_id=? WHERE id=?').run(platformId || null, chip.id);
-  res.json({ success: true, chipId: chip.id, platformId: platformId || null });
+  let replacedAsic = null;
+  try {
+    replacedAsic = assignChip(db, chip.id, platformId);
+  } catch (e) {
+    return res.status(e.status || 500).json({ error: e.message });
+  }
+  res.json({ success: true, chipId: chip.id, platformId: platformId || null, replacedAsic });
 });
 
 module.exports = router;

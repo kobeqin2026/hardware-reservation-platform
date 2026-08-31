@@ -2,6 +2,18 @@ const express = require('express');
 const router = express.Router();
 const { getDB } = require('../models/database');
 
+// 实验室位置白名单 —— 只有三个合法值，禁止其他值写入（2026-08-11 Kobe 要求）
+const LEGAL_LOCATIONS = ['十楼', '三楼', '健康城'];
+
+function isLegalLocation(v) {
+  if (v === undefined || v === null) return true;   // 未传=不修改
+  if (v === '') return true;                        // 清空允许（新建平台默认无位置）
+  return LEGAL_LOCATIONS.includes(v);
+}
+function locationErr(v) {
+  return `实验室位置只能是: ${LEGAL_LOCATIONS.join(' / ')} (收到 "${v}")`;
+}
+
 // 获取所有平台（含当前占用团队）
 router.get('/', (req, res) => {
   res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
@@ -73,6 +85,9 @@ router.get('/:id', (req, res) => {
 // 更新平台基本信息（type, location, label 等）
 router.patch('/:id', (req, res) => {
   const { type, location, label } = req.body;
+  if (location !== undefined && !isLegalLocation(location)) {
+    return res.status(400).json({ error: locationErr(location) });
+  }
   const db = getDB();
   const platform = db.prepare('SELECT * FROM platforms WHERE id=?').get(req.params.id);
   if (!platform) return res.status(404).json({ error: 'Platform not found' });
@@ -115,10 +130,16 @@ router.patch('/:id/status', (req, res) => {
 router.post('/', (req, res) => {
   const { id, label, project, config, location } = req.body;
   if (!id || !label) return res.status(400).json({ error: 'id and label required' });
+  if (location !== undefined && location !== null && !isLegalLocation(location)) {
+    return res.status(400).json({ error: locationErr(location) });
+  }
 
   const db = getDB();
   const existing = db.prepare('SELECT id FROM platforms WHERE id=?').get(id);
   if (existing) return res.status(409).json({ error: 'Platform already exists' });
+
+  const conflict = findJtagConflict(db, null, config);
+  if (conflict) return res.status(400).json({ error: `JTAG ${conflict.box} 已被平台 ${conflict.label} 绑定，一个 JTAG 只能绑定一个平台` });
 
   db.prepare("INSERT INTO platforms (id, label, project, location, config_json, status) VALUES (?, ?, ?, ?, ?, 'idle')")
     .run(id, label, project || 'BR288Y', location || '', JSON.stringify(config || {}));
@@ -127,11 +148,22 @@ router.post('/', (req, res) => {
 
 // 更新平台配置
 router.patch('/:id/config', (req, res) => {
-  const { config } = req.body;
+  const { config, location } = req.body;
   if (!config) return res.status(400).json({ error: 'config required' });
+  if (location !== undefined && !isLegalLocation(location)) {
+    return res.status(400).json({ error: locationErr(location) });
+  }
 
   const db = getDB();
-  db.prepare("UPDATE platforms SET config_json=?, updated_at=datetime('now','localtime') WHERE id=?").run(JSON.stringify(config), req.params.id);
+  const conflict = findJtagConflict(db, req.params.id, config);
+  if (conflict) return res.status(400).json({ error: `JTAG ${conflict.box} 已被平台 ${conflict.label} 绑定，一个 JTAG 只能绑定一个平台` });
+
+  if (location !== undefined) {
+    db.prepare("UPDATE platforms SET location=?, config_json=?, updated_at=datetime('now','localtime') WHERE id=?")
+      .run(location, JSON.stringify(config), req.params.id);
+  } else {
+    db.prepare("UPDATE platforms SET config_json=?, updated_at=datetime('now','localtime') WHERE id=?").run(JSON.stringify(config), req.params.id);
+  }
   res.json({ success: true });
 });
 
@@ -207,6 +239,20 @@ router.put('/:id/allocate-teams', (req, res) => {
 
 function safeJSON(str) {
   try { return JSON.parse(str); } catch(e) { return {}; }
+}
+
+// 一个 JTAG 盒子只能绑定一个平台（独占校验）
+function findJtagConflict(db, excludePlatformId, config) {
+  const box = ((config && config.jtag_box) || '').trim();
+  if (!box) return null;
+  const rows = db.prepare('SELECT id, label, config_json FROM platforms WHERE id != ?').all(String(excludePlatformId || ''));
+  for (const r of rows) {
+    const rc = safeJSON(r.config_json);
+    if (((rc.jtag_box) || '').trim() === box) {
+      return { box, platformId: r.id, label: r.label };
+    }
+  }
+  return null;
 }
 
 module.exports = router;

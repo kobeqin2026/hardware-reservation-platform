@@ -36,6 +36,11 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', time: new Date().toISOString() });
 });
 
+// MobaXterm ssh:// 一键注册脚本下载
+app.get('/api/ssh-mobaxterm-setup.bat', (req, res) => {
+  res.download(path.join(__dirname, 'ssh-mobaxterm-setup.bat'), 'ssh-mobaxterm-setup.bat');
+});
+
 // SPA fallback
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, '..', '..', 'client', 'dist', 'index.html'));
