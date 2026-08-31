@@ -1,6 +1,6 @@
 # 硬件资源管理平台 (Hardware Reservation Platform)
 
-> 系统地址：http://10.49.5.188:3002/
+> 系统地址：http://<服务器IP>:3002/
 
 ## 概述
 
@@ -81,28 +81,7 @@
 
 ### 默认用户
 
-| 用户名 | 密码 | 角色 | 显示名 |
-|--------|------|------|--------|
-| admin | admin123 | 管理员 | 管理员 |
-| kobe | kobe123 | 管理员 | Kobe |
-| iod | iod123 | Domain Owner | IODie |
-| board | board123 | Domain Owner | Board |
-| diag | diag123 | Domain Owner | Diag |
-| ethernet | ethernet123 | Domain Owner | Ethernet |
-| firmware | firmware123 | Domain Owner | Firmware |
-| hbm | hbm123 | Domain Owner | HBM |
-| jtag | jtag123 | Domain Owner | JTAG |
-| kmd | kmd123 | Domain Owner | KMD |
-| mbist | mbist123 | Domain Owner | MBIST |
-| pcie | pcie123 | Domain Owner | PCIe |
-| ppo | ppo123 | Domain Owner | PPO |
-| slt | slt123 | Domain Owner | SLT |
-| swci | swci123 | Domain Owner | SWCI |
-| swmodel | swmodel123 | Domain Owner | SWModel |
-| swtool | swtool123 | Domain Owner | SWTOOL |
-| ucie | ucie123 | Domain Owner | UCIe |
-| umd | umd123 | Domain Owner | UMD |
-| video | video123 | Domain Owner | Video |
+> 账号与默认密码不写入公开文档（见 README「默认用户」配置说明）。
 
 ---
 

@@ -297,7 +297,7 @@
     <!-- SSH 连接设置帮助对话框 -->
     <el-dialog v-model="sshHelpVisible" title="SSH 一键连接设置" width="620px">
       <div style="line-height:1.8;font-size:13px;">
-        <p>平台 IP 的用法：<b>点击 IP 直接复制</b> <code>ssh root@10.49.50.11</code>（完整 SSH 命令）到剪贴板，粘贴到 <b>MobaXterm 快速连接（Quick Connect）</b>或任意终端即可发起 SSH；或用 IP 旁的「复制」菜单复制 <b>MobaXterm 链接（含密码）</b> <code>ssh://root:root123@10.49.50.11</code>，给任何客户端/同事直接使用。</p>
+        <p>平台 IP 的用法：<b>点击 IP 直接复制</b> <code>ssh user@10.0.0.11</code>（完整 SSH 命令）到剪贴板，粘贴到 <b>MobaXterm 快速连接（Quick Connect）</b>或任意终端即可发起 SSH；或用 IP 旁的「复制」菜单复制 <b>MobaXterm 链接（含密码）</b> <code>ssh://user:pass@10.0.0.11</code>，给任何客户端/同事直接使用。</p>
 
         <el-divider content-position="left"><b>方式一：复制链接后用浏览器唤起 MobaXterm（可选）</b></el-divider>
         <ol style="margin:0;padding-left:20px;">
@@ -315,9 +315,9 @@
         <p style="margin:0;">MobaXterm → <b>Settings → General</b> → 勾选 <b>Associate URL Protocol (ssh://, telnet://...)</b> → OK → 重启浏览器生效。效果与方式一相同（地址栏粘贴 ssh:// 链接直接唤起）。</p>
 
         <el-divider content-position="left"><b>方式三：其他 SSH 客户端 / 终端</b></el-divider>
-        <p style="margin:0;">点 IP 旁「复制 → <b>SSH 命令</b>」复制 <code>ssh root@10.49.50.11</code>，粘贴到任意 SSH 客户端 / 其他终端；或直接点 IP 复制 <code>root@10.49.50.11</code>。</p>
+        <p style="margin:0;">点 IP 旁「复制 → <b>SSH 命令</b>」复制 <code>ssh user@10.0.0.11</code>，粘贴到任意 SSH 客户端 / 其他终端；或直接点 IP 复制 <code>user@10.0.0.11</code>。</p>
 
-        <el-alert type="info" :closable="false" style="margin-top:10px;" title="SSH 默认账户：用户 root，密码 root/root123（见平台行内的用户/密码列）。" />
+        <el-alert type="info" :closable="false" style="margin-top:10px;" title="SSH 默认账户：用户 root，密码见平台行内「密码」列。" />
       </div>
       <template #footer>
         <el-button type="primary" @click="sshHelpVisible = false">知道了</el-button>
@@ -394,7 +394,7 @@
           <el-input v-model="chipForm.serial" placeholder="芯片序列号" />
         </el-form-item>
         <el-form-item label="型号">
-          <el-input v-model="chipForm.type" placeholder="例如: BR200-768" />
+          <el-input v-model="chipForm.type" placeholder="例如: CHIP-001" />
         </el-form-item>
         <el-form-item label="状态">
           <el-select v-model="chipForm.status" style="width:100%">
@@ -1202,7 +1202,7 @@ function handleCopyCmd(cmd, row) {
   else copySshCmd(row)
 }
 
-/** 点击 IP：复制完整 SSH 命令 `ssh user@ip`（如 ssh root@10.49.50.11），粘贴到 MobaXterm 快速连接 / 终端直接发起连接 */
+/** 点击 IP：复制完整 SSH 命令 `ssh user@ip`（如 ssh user@10.0.0.11），粘贴到 MobaXterm 快速连接 / 终端直接发起连接 */
 function copyUserIp(cfg) {
   const c = cfg?.value || cfg || {}
   const user = c.os_user || 'root'

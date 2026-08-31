@@ -2,28 +2,26 @@ const express = require('express');
 const router = express.Router();
 const { getDB } = require('../models/database');
 
-// 预置账号
-const DEFAULT_USERS = [
-  { name: 'admin',   password: 'admin123',  role: 'admin', display_name: '管理员' },
-  { name: 'kobe',    password: 'kobe123',   role: 'admin', display_name: 'Kobe' },
-  // 每个团队的 domain owner 账号，密码 = 用户名 + 123
-  { name: 'board',    password: 'board123',    role: 'owner', display_name: 'Board' },
-  { name: 'firmware', password: 'firmware123', role: 'owner', display_name: 'Firmware' },
-  { name: 'diag',     password: 'diag123',     role: 'owner', display_name: 'Diag' },
-  { name: 'jtag',     password: 'jtag123',     role: 'owner', display_name: 'JTAG' },
-  { name: 'ethernet', password: 'ethernet123', role: 'owner', display_name: 'Ethernet' },
-  { name: 'pcie',     password: 'pcie123',     role: 'owner', display_name: 'PCIe' },
-  { name: 'hbm',      password: 'hbm123',      role: 'owner', display_name: 'HBM' },
-  { name: 'ucie',     password: 'ucie123',     role: 'owner', display_name: 'UCIe' },
-  { name: 'slt',      password: 'slt123',      role: 'owner', display_name: 'SLT' },
-  { name: 'ppo',      password: 'ppo123',      role: 'owner', display_name: 'PPO' },
-  { name: 'swci',     password: 'swci123',     role: 'owner', display_name: 'SWCI' },
-  { name: 'swmodel',  password: 'swmodel123',  role: 'owner', display_name: 'SWModel' },
-  { name: 'swtool',   password: 'swtool123',   role: 'owner', display_name: 'SWTOOL' },
-  { name: 'kmd',      password: 'kmd123',      role: 'owner', display_name: 'KMD' },
-  { name: 'umd',      password: 'umd123',      role: 'owner', display_name: 'UMD' },
-  { name: 'video',    password: 'video123',    role: 'owner', display_name: 'Video' },
-];
+// 预置账号: 从环境变量注入(公开仓库不含明文凭据)
+// 首次部署在 ~/skills/.env 配置 INITIAL_USERS(JSON 数组) 或 ADMIN_PASSWORD(单管理员);
+// 未配置则不自动建号(用户表已存在时不受影响)
+function loadDefaultUsers() {
+  try {
+    const raw = process.env.INITIAL_USERS;
+    if (raw) {
+      const arr = JSON.parse(raw);
+      if (Array.isArray(arr) && arr.length) return arr;
+    }
+  } catch (e) {
+    console.error('[users] INITIAL_USERS 解析失败:', e.message);
+  }
+  const adminPwd = process.env.ADMIN_PASSWORD || '';
+  if (adminPwd) {
+    return [{ name: 'admin', password: adminPwd, role: 'admin', display_name: '管理员' }];
+  }
+  return [];
+}
+const DEFAULT_USERS = loadDefaultUsers();
 
 // 初始化时确保表存在并插入默认用户
 function initUsers() {

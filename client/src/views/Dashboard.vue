@@ -188,7 +188,7 @@ function copyText(text, msg) {
   }
 }
 
-/** 点击 IP：复制完整 SSH 命令 `ssh user@ip`（如 ssh root@10.49.50.11），粘贴到 MobaXterm 快速连接 / 终端直接发起连接 */
+/** 点击 IP：复制完整 SSH 命令 `ssh user@ip`（如 ssh user@10.0.0.11），粘贴到 MobaXterm 快速连接 / 终端直接发起连接 */
 function copyUserIp(cfg) {
   const c = cfg || {}
   const user = c.os_user || 'root'

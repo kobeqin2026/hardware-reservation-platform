@@ -118,7 +118,7 @@
   <el-dialog v-model="showNewProjectDialog" title="新建项目" width="450px">
     <el-form :model="newProjectForm" label-width="90px">
       <el-form-item label="项目名称">
-        <el-input v-model="newProjectForm.name" placeholder="例如: BR300" />
+        <el-input v-model="newProjectForm.name" placeholder="例如: NEW-PROJ" />
       </el-form-item>
       <el-form-item label="复制来源">
         <el-select v-model="newProjectForm.copyFrom" filterable style="width:100%" placeholder="选择一个已有项目来复制">

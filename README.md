@@ -79,14 +79,14 @@
 - 类型/位置/OS/BMC/JTAG/状态/删除/新增 等编辑功能仅 admin 可见
 
 **默认用户**
-- 新增 `iod` 用户（iod/iod123, Domain Owner, 显示名 IOD）
+- 新增 iod 只读账号（Domain Owner, 显示名 IOD）
 
 #### Bug 修复
 - `PUT /api/teams/day-allocate` 保存失败（UNIQUE 约束不匹配 → 改为 DELETE + INSERT）
 - `GET /api/teams/day-allocations` 添加 `Cache-Control: no-store` 防止缓存
 - 平台列表页 `chip.platform_id` 查询支持 NULL 值
 - 编辑保存后 `_asic_id` 和 `_boundChips` 立即刷新，无需切换页面
-- 数据库硬编码 `BR2x6` 已全部改为 `BR288Y`，避免空项目反复出现
+- 数据库硬编码的旧项目名已全部整改为当前默认项目，避免空项目反复出现
 
 ---
 
@@ -189,44 +189,7 @@ cd client && npm run build
 
 ## 默认用户
 
-统一账号库（`users` 表，明文密码，统一为 `{用户名}123`）。本平台(3002)、gpu-tracker(8088)、kpi-portal(8090) 共用此账号库登录；jira-testcase(8089) 使用独立登录。
-
-**管理员（role=admin，2 个）**
-
-| 用户名 | 密码 | 角色 | 显示名 |
-|--------|------|------|--------|
-| admin | admin123 | 管理员 | 管理员 |
-| kobe | kobe123 | 管理员 | Kobe |
-
-**域负责人（role=owner，16 个，门户显示「域负责人」徽章）**
-
-| 用户名 | 密码 | 角色 | 显示名 |
-|--------|------|------|--------|
-| board | board123 | Domain Owner | Board |
-| diag | diag123 | Domain Owner | Diag |
-| ethernet | ethernet123 | Domain Owner | Ethernet |
-| firmware | firmware123 | Domain Owner | Firmware |
-| hbm | hbm123 | Domain Owner | HBM |
-| jtag | jtag123 | Domain Owner | JTAG |
-| kmd | kmd123 | Domain Owner | KMD |
-| pcie | pcie123 | Domain Owner | PCIe |
-| ppo | ppo123 | Domain Owner | PPO |
-| slt | slt123 | Domain Owner | SLT |
-| swci | swci123 | Domain Owner | SWCI |
-| swmodel | swmodel123 | Domain Owner | SWModel |
-| swtool | swtool123 | Domain Owner | SWTOOL |
-| ucie | ucie123 | Domain Owner | UCIe |
-| umd | umd123 | Domain Owner | UMD |
-| video | video123 | Domain Owner | Video |
-
-**只读账号（role=owner 但不在域负责人名单，1 个，门户显示「普通用户」徽章）**
-
-| 用户名 | 密码 | 角色 | 显示名 |
-|--------|------|------|--------|
-| biren | biren123 | 普通用户(只读) | 普通用户 |
-
-> 共 19 个账号。`biren` 在库中 role=owner 但不在域负责人名单（门户 `REAL_DOMAIN_OWNERS` / gpu-tracker `DOMAIN_OWNER_USER_KEY`，共 16 人），门户与平台内全部只读。新增只读账号 = 直接往 `users` 表 INSERT `role='owner'`（**勿用 POST /api/users**——该接口会给 owner 自动创建 team）。
-
+统一账号库（`users` 表）。**账号与默认密码不写入版本库**：首次部署在 `~/skills/.env` 配置 `INITIAL_USERS`（JSON 数组）或 `ADMIN_PASSWORD`（单管理员）自动建号，或直接操作数据库 `users` 表（先备份）。`users` 表与 gpu-tracker(8088)/kpi-portal(8090) 共用登录。
 ## 团队分配操作流程
 
 1. admin 登录 → 导航到「团队分配」页面

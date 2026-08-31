@@ -101,7 +101,7 @@ function initTables() {
       platform_id TEXT NOT NULL REFERENCES platforms(id),
       slot TEXT DEFAULT '',                -- Slot0, Slot1 ...
       serial TEXT DEFAULT '',              -- 芯片序列号
-      type TEXT DEFAULT '',                -- BR200-768, BR200-132 etc.
+      type TEXT DEFAULT '',                -- 芯片型号(如 CHIP-768)
       status TEXT DEFAULT 'idle' CHECK(status IN ('idle','testing','done','failed')),
       remark TEXT DEFAULT '',
       created_at TEXT DEFAULT (datetime('now','localtime')),

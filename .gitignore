@@ -5,3 +5,9 @@ dist/
 *.db-shm
 *.db-wal
 *.dbdebug.html
+
+# SQLite 数据库与备份(含敏感数据, 不入版本库)
+*.db
+*.db-wal
+*.db-shm
+*.db.bak*
