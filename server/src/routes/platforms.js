@@ -142,7 +142,7 @@ router.post('/', (req, res) => {
   if (conflict) return res.status(400).json({ error: `JTAG ${conflict.box} 已被平台 ${conflict.label} 绑定，一个 JTAG 只能绑定一个平台` });
 
   db.prepare("INSERT INTO platforms (id, label, project, location, config_json, status) VALUES (?, ?, ?, ?, ?, 'idle')")
-    .run(id, label, project || 'BR288Y', location || '', JSON.stringify(config || {}));
+    .run(id, label, project || (process.env.DEFAULT_PROJECT || 'default-project'), location || '', JSON.stringify(config || {}));
   res.json({ success: true, id });
 });
 

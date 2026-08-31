@@ -82,7 +82,7 @@ router.post('/copy', (req, res) => {
 router.delete('/:project', (req, res) => {
   const { project } = req.params;
   if (!project) return res.status(400).json({ error: 'project name required' });
-  if (project === 'BR288Y') return res.status(403).json({ error: '不能删除默认项目 BR288Y' });
+  if (project === (process.env.DEFAULT_PROJECT || 'default-project')) return res.status(403).json({ error: '不能删除默认项目' });
 
   const db = getDB();
   db.pragma('foreign_keys = OFF');

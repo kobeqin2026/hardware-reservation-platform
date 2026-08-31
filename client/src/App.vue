@@ -219,8 +219,8 @@ async function refreshAll() {
 }
 
 // ---- 项目管理 ----
-const allProjects = ref(['BR288Y'])
-const currentProject = ref('BR288Y')
+const allProjects = ref([])
+const currentProject = ref('')
 const showNewProjectDialog = ref(false)
 const creatingProject = ref(false)
 const newProjectForm = ref({ name: '', copyFrom: '' })

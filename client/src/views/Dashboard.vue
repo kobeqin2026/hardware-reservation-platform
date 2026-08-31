@@ -165,7 +165,7 @@ import {
   getPlatforms, reservePlatform, releaseReservation, getLogs
 } from '@/api'
 
-const currentProject = inject('currentProject', ref('BR288Y'))
+const currentProject = inject('currentProject', ref(''))
 
 /** 剪贴板写入：clipboard API 优先，非 https 回退 execCommand */
 function copyText(text, msg) {
@@ -350,7 +350,7 @@ async function loadAll() {
 // ---- 计算当前项目下的平台 ----
 const projectPlatforms = computed(() => {
   return platforms.value
-    .filter(p => (p.project || 'BR288Y') === currentProject.value)
+    .filter(p => (p.project || '') === currentProject.value)
     .sort((a, b) => {
       const na = parseInt((a.label || a.id || '').replace(/.*?BU/gi, '').replace(/[^0-9]/g, '') || '0', 10)
       const nb = parseInt((b.label || b.id || '').replace(/.*?BU/gi, '').replace(/[^0-9]/g, '') || '0', 10)

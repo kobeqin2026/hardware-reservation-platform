@@ -37,7 +37,7 @@ function initUsers() {
   `);
   // 确保 projects 表存在并至少有一个默认项目
   db.exec(`CREATE TABLE IF NOT EXISTS projects (name TEXT PRIMARY KEY, created_at TEXT DEFAULT (datetime('now','localtime')))`);
-  db.prepare("INSERT OR IGNORE INTO projects (name) VALUES ('BR288Y')").run();
+  db.prepare('INSERT OR IGNORE INTO projects (name) VALUES (?)').run(process.env.DEFAULT_PROJECT || 'default-project');
   // 插入默认用户（忽略已存在的）
   const insert = db.prepare('INSERT OR IGNORE INTO users (name, password, role, display_name) VALUES (?, ?, ?, ?)');
   for (const u of DEFAULT_USERS) {

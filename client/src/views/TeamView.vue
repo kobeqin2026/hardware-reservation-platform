@@ -62,7 +62,7 @@ import { ref, computed, onMounted, inject, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { getPlatforms, getStages, updateStage, getOverview } from '@/api'
 
-const currentProject = inject('currentProject', ref('BR288Y'))
+const currentProject = inject('currentProject', ref(''))
 
 const TEAM_COLOR_MAP = {
   hbm: '#F97316', ucie: '#84CC16', jtag: '#0891B2', swtool: '#0369A1',
@@ -158,7 +158,7 @@ async function loadAllocData() {
       getPlatforms(), getStages(), getOverview(),
       fetch('/api/teams/day-allocations').then(r=>r.json())
     ])
-    platforms.value = (p.data.platforms || []).filter(function(p) { return (p.project || 'BR288Y') === currentProject.value; })
+    platforms.value = (p.data.platforms || []).filter(function(p) { return (p.project || '') === currentProject.value; })
     bs.value = s.data.bringupStart || '09-28'
     be.value = s.data.bringupEnd || '10-11'
     allocations.value = o.data?.allocations || []

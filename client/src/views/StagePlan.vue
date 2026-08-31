@@ -157,7 +157,7 @@ import { Edit, Refresh } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { getStages, updateStage, getStageOverview, getStageComparison } from '@/api'
 
-const currentProject = inject('currentProject', ref('BR288Y'))
+const currentProject = inject('currentProject', ref(''))
 const stages = ref([])
 const editStages = ref([])
 const allTeams = ref([])

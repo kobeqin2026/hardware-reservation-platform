@@ -50,7 +50,7 @@ function initTables() {
       id TEXT PRIMARY KEY,
       label TEXT NOT NULL,                -- BU1, BU2, BU3, BU4
       type TEXT NOT NULL DEFAULT 'socket' CHECK(type IN ('socket','solder_down')),
-      project TEXT NOT NULL DEFAULT 'BR288Y',  -- 所属项目
+      project TEXT NOT NULL DEFAULT 'default-project',  -- 所属项目(env DEFAULT_PROJECT 注入默认)
       status TEXT NOT NULL DEFAULT 'idle' CHECK(status IN ('idle','in_use','maintenance','ft_reserved','backup')),
       location TEXT DEFAULT '',
       config_json TEXT DEFAULT '{}',      -- 硬件配置
@@ -175,11 +175,11 @@ function initTables() {
       }
       const cols = db.prepare("PRAGMA table_info('platforms')").all();
       if (!cols.find(c => c.name === 'project')) {
-        db.exec("ALTER TABLE platforms ADD COLUMN project TEXT NOT NULL DEFAULT 'BR288Y'");
+        db.exec("ALTER TABLE platforms ADD COLUMN project TEXT NOT NULL DEFAULT 'default-project'");
         console.log('[migrate] added project column to platforms');
       }
-      // 设置所有现有平台为 BR288Y
-      db.exec("UPDATE platforms SET project='BR288Y' WHERE project IS NULL OR project=''");
+      // 设置所有现有平台为默认项目(env DEFAULT_PROJECT)
+      db.exec("UPDATE platforms SET project='" + (process.env.DEFAULT_PROJECT || 'default-project') + "' WHERE project IS NULL OR project=''");
 
       // 为 chips 表添加新列 (ASIC ID, UUID, MBist, FT, SLT)
       const chipCols = db.prepare("PRAGMA table_info('chips')").all();

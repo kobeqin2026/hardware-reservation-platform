@@ -133,7 +133,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { getAllChips, createChip, updateChip, deleteChip, getPlatforms } from '@/api'
 import api from '@/api'
 
-const currentProject = inject('currentProject', ref('BR288Y'))
+const currentProject = inject('currentProject', ref(''))
 const chips = ref([])
 const platforms = ref([])
 const loading = ref(false)
@@ -168,7 +168,7 @@ const assigning = ref(false)
 /** 当前项目下的平台列表 */
 const isAdmin = computed(() => { try { const u = JSON.parse(localStorage.getItem('hw_reservation_user') || 'null'); return !!(u && u.role === 'admin') } catch (e) { return false } })
 const projectPlatforms = computed(() =>
-  platforms.value.filter(p => (p.project || 'BR288Y') === currentProject.value)
+  platforms.value.filter(p => (p.project || '') === currentProject.value)
 )
 
 /** 按项目过滤后的芯片 + 搜索/筛选 */

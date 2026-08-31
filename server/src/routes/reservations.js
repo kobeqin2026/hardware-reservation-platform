@@ -109,7 +109,7 @@ router.get('/logs', (req, res) => {
 router.get('/active-summary', (req, res) => {
   res.set('Cache-Control', 'no-store');
   const db = getDB();
-  const project = req.query.project || 'BR288Y';
+  const project = req.query.project || (process.env.DEFAULT_PROJECT || 'default-project');
   const rows = db.prepare(`
     SELECT r.platform_id, p.label as platform_label, r.team_id,
            t.display_name as team_name, t.color as team_color,
