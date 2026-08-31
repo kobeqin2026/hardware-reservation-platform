@@ -1,7 +1,7 @@
 {
   "name": "hardware-reservation-platform",
   "version": "1.0.0",
-  "description": "硬件资源预约平台 - Bringup BU 14天团队分配管理",
+  "description": "硬件资源管理平台 - Bringup BU 14天团队分配管理",
   "private": true,
   "scripts": {
     "start": "node server/src/index.js",

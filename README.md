@@ -1,6 +1,28 @@
-# 硬件资源预约平台 (Hardware Reservation Platform)
+# 硬件资源管理平台 (Hardware Reservation Platform)
 
 ## 版本历史
+
+### v1.0.0 (2026-08-31) — 统一四平台版本管理
+
+**版本说明**：与 kpi-portal / gpu-tracker / jira-testcase-manager 统一为 **v1.0.0** 版本管理（`package.json` 版本 1.0.0；此前 feature 版本 v1.1.0 见下方历史）。
+
+**JTAG 一盒一机独占**
+- 后端 `findJtagConflict()` 全局校验：创建 / 编辑保存时若 `jtag_box` 已被其它平台占用 → 400 拦截并提示占用方（「JTAG xx 已被平台 BU3 绑定，一个 JTAG 只能绑定一个平台」）
+- 前端保存失败透出后端详细错误；存量 8 个 JTAG 盒重复绑定已收敛为一盒一机
+- 总览看板 BU 平台状态卡片新增 **JTAG 连接状态行**（盒子名 · IP / 灰色「未连接」）
+
+**权限只读保护补洞（owner 全站只读）**
+- Dashboard / PlatformView / ChipInfo / StagePlan / App 的写按钮补齐 `v-if="isAdmin"`：新建预约、释放、行内预约、编辑配置、添加/删除芯片、编辑时间、创建新项目等
+- 统一 `isAdmin` computed（localStorage role==='admin'）
+
+**统一用户库**
+- 3002 / 8088 / 8089 / 8090 四应用共用本平台 `users` 表（明文密码，role 仅 admin/owner）
+- 新增只读账号 = 直接 INSERT `users` 表 `role='owner'`（勿用 POST /api/users，会自动建 team）
+
+**其它（2026-08 期间）**
+- 深色主题统一（Element Plus dark + kpi 设计令牌），内联浅色文案修正（#fff / #8b93a7）
+- 平台更名「硬件资源管理平台」；实验室位置三值白名单（十楼/三楼/健康城）
+- SSH 一键连接（点击 IP 复制 `ssh user@ip` / MobaXterm 链接含密码 / ssh:// 协议注册 bat）
 
 ### v1.1.0 — 新建预约修复 + 团队分配重构 + Gantt 条状图 + 阶段联动 (2026-08-03)
 
@@ -134,7 +156,7 @@
 
 ---
 
-### v0.5.0 — 硬件资源预约平台 初始版本 (2026-07-28)
+### v0.5.0 — 硬件资源管理平台 初始版本 (2026-07-28)
 
 Bringup FE + FST + PVT 阶段团队-平台分配管理。
 
@@ -189,10 +211,19 @@ cd client && npm run build
 
 ## 默认用户
 
+统一账号库（`users` 表，明文密码，统一为 `{用户名}123`）。本平台(3002)、gpu-tracker(8088)、kpi-portal(8090) 共用此账号库登录；jira-testcase(8089) 使用独立登录。
+
+**管理员（role=admin，2 个）**
+
 | 用户名 | 密码 | 角色 | 显示名 |
 |--------|------|------|--------|
 | admin | admin123 | 管理员 | 管理员 |
 | kobe | kobe123 | 管理员 | Kobe |
+
+**域负责人（role=owner，16 个，门户显示「域负责人」徽章）**
+
+| 用户名 | 密码 | 角色 | 显示名 |
+|--------|------|------|--------|
 | board | board123 | Domain Owner | Board |
 | diag | diag123 | Domain Owner | Diag |
 | ethernet | ethernet123 | Domain Owner | Ethernet |
@@ -200,7 +231,6 @@ cd client && npm run build
 | hbm | hbm123 | Domain Owner | HBM |
 | jtag | jtag123 | Domain Owner | JTAG |
 | kmd | kmd123 | Domain Owner | KMD |
-| mbist | mbist123 | Domain Owner | MBIST |
 | pcie | pcie123 | Domain Owner | PCIe |
 | ppo | ppo123 | Domain Owner | PPO |
 | slt | slt123 | Domain Owner | SLT |
@@ -210,6 +240,14 @@ cd client && npm run build
 | ucie | ucie123 | Domain Owner | UCIe |
 | umd | umd123 | Domain Owner | UMD |
 | video | video123 | Domain Owner | Video |
+
+**只读账号（role=owner 但不在域负责人名单，1 个，门户显示「普通用户」徽章）**
+
+| 用户名 | 密码 | 角色 | 显示名 |
+|--------|------|------|--------|
+| biren | biren123 | 普通用户(只读) | 普通用户 |
+
+> 共 19 个账号。`biren` 在库中 role=owner 但不在域负责人名单（门户 `REAL_DOMAIN_OWNERS` / gpu-tracker `DOMAIN_OWNER_USER_KEY`，共 16 人），门户与平台内全部只读。新增只读账号 = 直接往 `users` 表 INSERT `role='owner'`（**勿用 POST /api/users**——该接口会给 owner 自动创建 team）。
 
 ## 团队分配操作流程
 

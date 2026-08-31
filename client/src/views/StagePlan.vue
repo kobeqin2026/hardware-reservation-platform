@@ -4,7 +4,7 @@
       <span style="font-size:16px;font-weight:700;">{{ currentProject }} — 阶段规划</span>
       <div style="display:flex;gap:8px;">
         <el-button size="small" @click="loadData" :icon="Refresh">刷新</el-button>
-        <el-button size="small" type="primary" @click="openTimeEdit" :icon="Edit">编辑时间</el-button>
+        <el-button v-if="isAdmin" size="small" type="primary" @click="openTimeEdit" :icon="Edit">编辑时间</el-button>
       </div>
     </div>
 
@@ -38,9 +38,9 @@
               v-for="w in allWeeks"
               :key="w"
               class="gantt-week-header"
-              :class="{ 'current-week': w === currentWeek }"
+              :class="{ 'current-week': w === currentWeekKey }"
             >
-              <span class="week-label">{{ w.slice(-3) }}</span>
+              <span class="week-label">{{ weekLabel(w) }}</span>
             </div>
           </div>
         </div>
@@ -168,6 +168,9 @@ const saving = ref(false)
 const highlightStage = ref('')
 const selectedStageDetail = ref(null)
 
+// 只读判定: 仅 admin 可写; owner 等角色对所有页面只读
+const isAdmin = computed(() => { try { const u = JSON.parse(localStorage.getItem('hw_reservation_user') || 'null'); return !!(u && u.role === 'admin') } catch (e) { return false } })
+
 // ---- 周粒度 (阶段时间轴) ----
 const currentWeekNumber = computed(() => {
   const now = new Date()
@@ -222,6 +225,9 @@ const currentWeek = computed(() => {
   return `W${wn}`
 })
 
+// 当前周完整键 (年份+周号), 用于表头高亮: 只有当年同周匹配, 避免 2027-W35 也被高亮
+const currentWeekKey = computed(() => new Date().getFullYear() + '-' + currentWeek.value)
+
 function weekNum(w) {
   const m = (w || '').match(/(?:W)(\d+)/i)
   return m ? parseInt(m[1]) : NaN
@@ -238,20 +244,24 @@ function isInStage(stage, week) {
   const end = weekNum(stage.end_week)
   const w = weekNum(week)
   const wy = weekYear(week)
+  if (isNaN(start) || isNaN(end) || isNaN(w)) return false
   const isCrossYear = (start > end)
   if (isCrossYear) {
-    if (start <= 52) {
-      if (wy === '2026') return w >= start && w <= 52
-      if (wy === '2027') return w >= 1 && w <= end
-    }
+    // 跨年阶段: 2026 年覆盖 start~W52, 2027 年覆盖 W1~end
+    if (wy === '2026' && start <= 52) return w >= start && w <= 52
+    if (wy === '2027') return w >= 1 && w <= end
     return false
   }
-  if (wy === '2026' && start > 9 && start <= 52) {
-    if (w >= start && w <= end) return true
-  } else if (wy === '2027') {
-    if (w >= start && w <= end) return true
-  }
-  return false
+  // 非跨年: 阶段固定归属年份由 start_week 决定 (W10~W52 → 2026 年, W1~W9 → 2027 年)
+  const stageYear = start <= 9 ? '2027' : '2026'
+  if (wy !== stageYear) return false
+  return w >= start && w <= end
+}
+
+// 周标题: "2027-W1" → "W1" (slice(-3) 对一位数周号会截出 "-W1")
+function weekLabel(w) {
+  const m = String(w || '').match(/W\d+$/i)
+  return m ? m[0] : w
 }
 
 function weekCellClass(stage, week) {
@@ -399,19 +409,19 @@ if (typeof window !== 'undefined') {
 .gantt-year-header {
   text-align: center;
   font-weight: 700;
-  color: #666;
-  border-bottom: 1px solid #ddd;
+  color: #8b93a7;
+  border-bottom: 1px solid rgba(255,255,255,.12);
   line-height: 28px;
 }
 .gantt-week-header {
   width: 32px;
   text-align: center;
-  border-right: 1px solid #eee;
-  color: #999;
+  border-right: 1px solid rgba(255,255,255,.12);
+  color: #8b93a7;
   line-height: 22px;
 }
 .gantt-week-header.current-week {
-  background: #fef3e2;
+  background: #3a4157;
   font-weight: 700;
   color: #E6A23C;
 }
@@ -419,10 +429,10 @@ if (typeof window !== 'undefined') {
   display: flex;
   align-items: center;
   min-height: 40px;
-  border-bottom: 1px solid #f0f0f0;
+  border-bottom: 1px solid rgba(255,255,255,.08);
 }
 .gantt-row.active-stage {
-  background: #fafafa;
+  background: #1d2436;
 }
 .gantt-bars {
   display: flex;
@@ -441,15 +451,15 @@ if (typeof window !== 'undefined') {
 }
 .team-count-badge {
   font-size: 10px;
-  color: #666;
-  background: rgba(255,255,255,0.8);
+  color: #e6e9f2;
+  background: rgba(255,255,255,0.14);
   padding: 0 4px;
   border-radius: 3px;
 }
 .stage-name { font-weight: 600; font-size: 13px; }
-.stage-weeks-label { font-size: 10px; color: #999; }
+.stage-weeks-label { font-size: 10px; color: #8b93a7; }
 
-/* Day Gantt */
+/* Day Gantt (当前未启用, 保持与深色主题一致的兜底) */
 .day-gantt-container {
   overflow-x: auto;
   font-size: 11px;
@@ -470,8 +480,8 @@ if (typeof window !== 'undefined') {
 .dg-month-header {
   text-align: center;
   font-weight: 600;
-  color: #555;
-  border-bottom: 1px solid #ddd;
+  color: #8b93a7;
+  border-bottom: 1px solid rgba(255,255,255,.12);
   line-height: 24px;
 }
 .dg-days {
@@ -479,27 +489,27 @@ if (typeof window !== 'undefined') {
 }
 .dg-day-header {
   text-align: center;
-  border-right: 1px solid #f0f0f0;
+  border-right: 1px solid rgba(255,255,255,.1);
   padding: 2px 0;
 }
 .dg-day-header.weekend {
-  background: #f9f9f9;
-  color: #c0c4cc;
+  background: rgba(255,255,255,.04);
+  color: #8b93a7;
 }
 .dg-day-header.today {
-  background: #fef3e2;
+  background: #3a4157;
   font-weight: 700;
 }
 .day-num { font-size: 11px; line-height: 1.2; }
-.day-dow { font-size: 9px; color: #999; }
+.day-dow { font-size: 9px; color: #8b93a7; }
 .dg-row {
   display: flex;
   align-items: center;
-  border-bottom: 1px solid #f0f0f0;
+  border-bottom: 1px solid rgba(255,255,255,.08);
 }
 .dg-day-cell {
   height: 28px;
-  border-right: 1px solid #f0f0f0;
+  border-right: 1px solid rgba(255,255,255,.08);
 }
 .dg-day-cell.empty {
   background: #1d2436;

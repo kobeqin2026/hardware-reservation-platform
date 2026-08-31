@@ -49,9 +49,9 @@
         <el-table-column label="操作" width="200">
           <template #default="{row}">
             <div style="display:flex;gap:4px;">
-              <el-button size="small" @click="handleEdit(row)">编辑</el-button>
-              <el-button size="small" @click="handleAssignPlatform(row)" :disabled="!!row.platform_id">分配平台</el-button>
-              <el-button size="small" type="danger" @click="handleDelete(row)">删除</el-button>
+              <el-button v-if="isAdmin" size="small" @click="handleEdit(row)">编辑</el-button>
+              <el-button v-if="isAdmin" size="small" @click="handleAssignPlatform(row)">分配平台</el-button>
+              <el-button v-if="isAdmin" size="small" type="danger" @click="handleDelete(row)">删除</el-button>
             </div>
           </template>
         </el-table-column>
@@ -166,6 +166,7 @@ const assignForm = ref({ platformId: '' })
 const assigning = ref(false)
 
 /** 当前项目下的平台列表 */
+const isAdmin = computed(() => { try { const u = JSON.parse(localStorage.getItem('hw_reservation_user') || 'null'); return !!(u && u.role === 'admin') } catch (e) { return false } })
 const projectPlatforms = computed(() =>
   platforms.value.filter(p => (p.project || 'BR288Y') === currentProject.value)
 )
@@ -236,11 +237,19 @@ async function handleSave() {
   saving.value = true
   try {
     if (isEdit.value) {
-      await updateChip(editId.value, chipForm.value)
-      ElMessage.success('芯片信息已更新')
+      const res = await updateChip(editId.value, chipForm.value)
+      if (res.data?.replacedAsic) {
+        ElMessage.warning(`已保存，原平台芯片 ${res.data.replacedAsic} 已移出到未分配`)
+      } else {
+        ElMessage.success('芯片信息已更新')
+      }
     } else {
-      await createChip(chipForm.value)
-      ElMessage.success('芯片已添加')
+      const res = await createChip(chipForm.value)
+      if (res.data?.replacedAsic) {
+        ElMessage.warning(`芯片已添加，原平台芯片 ${res.data.replacedAsic} 已移出到未分配`)
+      } else {
+        ElMessage.success('芯片已添加')
+      }
     }
     dialogVisible.value = false
     await loadChips()
@@ -277,8 +286,12 @@ async function doAssign() {
   }
   assigning.value = true
   try {
-    await updateChip(assignChipId.value, { platformId: assignForm.value.platformId })
-    ElMessage.success('平台已分配')
+    const res = await updateChip(assignChipId.value, { platformId: assignForm.value.platformId })
+    if (res.data?.replacedAsic) {
+      ElMessage.warning(`已分配，原平台芯片 ${res.data.replacedAsic} 已移出到未分配`)
+    } else {
+      ElMessage.success('平台已分配')
+    }
     assignVisible.value = false
     await loadChips()
   } catch(e) {

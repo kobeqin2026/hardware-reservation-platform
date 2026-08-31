@@ -5,6 +5,7 @@
         <div style="display:flex;align-items:center;justify-content:space-between;">
           <span style="font-weight:600;">平台列表 & 详情</span>
           <div style="display:flex;align-items:center;gap:8px;">
+            <el-button size="small" @click="showSshHelp">SSH 连接设置</el-button>
             <el-dropdown v-if="isAdmin" @command="handleNewPlatform">
               <el-button size="small" type="success" :icon="Plus">新增平台</el-button>
               <template #dropdown>
@@ -43,8 +44,8 @@
         <el-table-column label="实验室位置" width="120">
           <template #default="{row}">
             <el-select v-if="isAdmin && row._editing" v-model="row._location" size="small" style="width:105px;">
-              <el-option label="三楼" value="三楼" />
               <el-option label="十楼" value="十楼" />
+              <el-option label="三楼" value="三楼" />
               <el-option label="健康城" value="健康城" />
             </el-select>
             <el-tag v-else size="small" style="border:none;">{{ row.location || '-' }}</el-tag>
@@ -66,7 +67,21 @@
             </template>
             <div v-else-if="row.config?.os" style="line-height:1.5;font-size:11px;">
               <div style="font-family:monospace;">OS: {{ row.config.os }}</div>
-              <div><span style="color:#999;">IP:</span> <span style="font-family:monospace;color:#409EFF;">{{ row.config.ip || '-' }}</span></div>
+              <div style="display:flex;align-items:center;flex-wrap:wrap;gap:2px;">
+                <span style="color:#999;">IP:</span>
+                <span v-if="row.config?.ip" class="ssh-link" :title="'点击复制: ssh ' + (row.config.os_user || 'root') + '@' + row.config.ip" @click.stop="copyUserIp(row.config)">{{ row.config.ip }}</span>
+                <span v-else style="font-family:monospace;color:#409EFF;">-</span>
+                <el-dropdown v-if="row.config?.ip" trigger="click" size="small" style="margin-left:2px;"
+                  @command="(cmd) => handleCopyCmd(cmd, row)">
+                  <el-button size="small" link type="primary" style="padding:0;" @click.stop>复制</el-button>
+                  <template #dropdown>
+                    <el-dropdown-menu>
+                      <el-dropdown-item command="moba">MobaXterm 链接（含密码）</el-dropdown-item>
+                      <el-dropdown-item command="ssh">SSH 命令</el-dropdown-item>
+                    </el-dropdown-menu>
+                  </template>
+                </el-dropdown>
+              </div>
               <div><span style="color:#999;">用户/密码:</span> {{ row.config.os_user || '-' }}/{{ row.config.os_pass || '-' }}</div>
             </div>
             <span v-else style="color:#ccc;">-</span>
@@ -160,7 +175,7 @@
                 <el-option label="维护中" value="maintenance" />
               </el-select>
               <el-tag v-if="!isAdmin" :type="row.status === 'idle' ? 'success' : row.status === 'in_use' ? 'warning' : 'danger'" size="small">{{ {idle:'空闲',in_use:'使用中',maintenance:'维护中'}[row.status] || row.status }}</el-tag>
-              <el-button size="small" type="success" @click="showQuickReserve(row)">预约</el-button>
+              <el-button v-if="isAdmin" size="small" type="success" @click="showQuickReserve(row)">预约</el-button>
               <el-button size="small" type="primary" @click="showDetail(row)">详情</el-button>
             </div>
           </template>
@@ -182,7 +197,8 @@
                 </el-tag>
               </el-descriptions-item>
               <el-descriptions-item label="IP地址">
-                <span style="font-family:monospace;">{{ detailConfig.ip || '-' }}</span>
+                <span v-if="detailConfig.ip" class="ssh-link" :title="'点击复制: ssh ' + (detailConfig.os_user || 'root') + '@' + detailConfig.ip" @click.stop="copyUserIp(detailConfig)">{{ detailConfig.ip }}</span>
+                <span v-else style="font-family:monospace;">-</span>
               </el-descriptions-item>
               <el-descriptions-item label="位置">
                 <span>{{ detailPlatform.location || '-' }}</span>
@@ -215,8 +231,8 @@
 
             <!-- 操作按钮 -->
             <div style="margin-top:12px;display:flex;gap:8px;">
-              <el-button size="small" type="primary" @click="showConfigEdit(detailPlatform)">编辑配置</el-button>
-              <el-button size="small" type="success" @click="showQuickReserve(detailPlatform)" :disabled="detailPlatform.status==='maintenance'">
+              <el-button v-if="isAdmin" size="small" type="primary" @click="showConfigEdit(detailPlatform)">编辑配置</el-button>
+              <el-button v-if="isAdmin" size="small" type="success" @click="showQuickReserve(detailPlatform)" :disabled="detailPlatform.status==='maintenance'">
                 快速预约
               </el-button>
             </div>
@@ -225,7 +241,7 @@
           <!-- 芯片信息 -->
           <el-tab-pane label="芯片信息">
             <div style="margin-bottom:8px;">
-              <el-button size="small" type="primary" @click="addChipForPlatform(detailPlatform.id)" :icon="Plus">添加芯片</el-button>
+              <el-button v-if="isAdmin" size="small" type="primary" @click="addChipForPlatform(detailPlatform.id)" :icon="Plus">添加芯片</el-button>
             </div>
             <el-table :data="detailChips" size="small" v-if="detailChips.length" style="width:100%;">
               <el-table-column label="平台" width="70">
@@ -237,8 +253,8 @@
               <el-table-column prop="type" label="芯片型号" width="160" />
               <el-table-column label="操作" width="130">
                 <template #default="{row}">
-                  <el-button size="small" text type="primary" @click="editChipInDetail(row)">编辑</el-button>
-                  <el-button size="small" text type="danger" @click="delChipInDetail(row)">删除</el-button>
+                  <el-button v-if="isAdmin" size="small" text type="primary" @click="editChipInDetail(row)">编辑</el-button>
+                  <el-button v-if="isAdmin" size="small" text type="danger" @click="delChipInDetail(row)">删除</el-button>
                 </template>
               </el-table-column>
             </el-table>
@@ -278,6 +294,36 @@
       </template>
     </el-dialog>
 
+    <!-- SSH 连接设置帮助对话框 -->
+    <el-dialog v-model="sshHelpVisible" title="SSH 一键连接设置" width="620px">
+      <div style="line-height:1.8;font-size:13px;">
+        <p>平台 IP 的用法：<b>点击 IP 直接复制</b> <code>ssh root@10.49.50.11</code>（完整 SSH 命令）到剪贴板，粘贴到 <b>MobaXterm 快速连接（Quick Connect）</b>或任意终端即可发起 SSH；或用 IP 旁的「复制」菜单复制 <b>MobaXterm 链接（含密码）</b> <code>ssh://root:root123@10.49.50.11</code>，给任何客户端/同事直接使用。</p>
+
+        <el-divider content-position="left"><b>方式一：复制链接后用浏览器唤起 MobaXterm（可选）</b></el-divider>
+        <ol style="margin:0;padding-left:20px;">
+          <li>点击下方按钮下载 <b>ssh-mobaxterm-setup.bat</b>（把本机 MobaXterm 注册为 ssh:// 协议的打开程序）</li>
+          <li>双击运行（如被 SmartScreen 拦截，点「更多信息 → 仍要运行」）</li>
+          <li>完全关闭浏览器再重新打开（浏览器会缓存协议关联）</li>
+          <li>点 IP 旁「复制 → MobaXterm 链接（含密码）」，把链接粘贴到<b>浏览器地址栏</b>回车</li>
+          <li>浏览器首次会弹确认框 → 勾选「总是允许」→ MobaXterm 自动打开新会话，用户名/密码已带出</li>
+        </ol>
+        <div style="margin-top:8px;">
+          <el-button type="primary" size="small" @click="downloadSshSetup">下载 ssh-mobaxterm-setup.bat</el-button>
+        </div>
+
+        <el-divider content-position="left"><b>方式二：MobaXterm 内手动开启协议（不下载脚本）</b></el-divider>
+        <p style="margin:0;">MobaXterm → <b>Settings → General</b> → 勾选 <b>Associate URL Protocol (ssh://, telnet://...)</b> → OK → 重启浏览器生效。效果与方式一相同（地址栏粘贴 ssh:// 链接直接唤起）。</p>
+
+        <el-divider content-position="left"><b>方式三：其他 SSH 客户端 / 终端</b></el-divider>
+        <p style="margin:0;">点 IP 旁「复制 → <b>SSH 命令</b>」复制 <code>ssh root@10.49.50.11</code>，粘贴到任意 SSH 客户端 / 其他终端；或直接点 IP 复制 <code>root@10.49.50.11</code>。</p>
+
+        <el-alert type="info" :closable="false" style="margin-top:10px;" title="SSH 默认账户：用户 root，密码 root/root123（见平台行内的用户/密码列）。" />
+      </div>
+      <template #footer>
+        <el-button type="primary" @click="sshHelpVisible = false">知道了</el-button>
+      </template>
+    </el-dialog>
+
     <!-- 平台配置编辑对话框 -->
     <el-dialog v-model="configVisible" :title="'编辑 ' + (configPlatform?.label || '') + ' 配置'" width="500px">
       <el-form :model="configForm" label-width="90px">
@@ -285,7 +331,12 @@
           <el-input v-model="configForm.ip" placeholder="例如: 192.168.1.100" />
         </el-form-item>
         <el-form-item label="位置">
-          <el-input v-model="configForm.location" placeholder="例如: 实验室A-01" />
+          <el-select v-model="configForm.location" placeholder="选择实验室位置" style="width:100%;">
+            <el-option label="十楼" value="十楼" />
+            <el-option label="三楼" value="三楼" />
+            <el-option label="健康城" value="健康城" />
+            <el-option label="未设置" value="" />
+          </el-select>
         </el-form-item>
         <el-form-item label="主板/CPU">
           <el-input v-model="configForm.cpu" placeholder="例如: Intel Xeon Gold 6426Y" />
@@ -782,7 +833,7 @@ async function savePlatformEdit(row) {
     row._editing = false
     ElMessage.success('配置已保存')
   } catch(e) {
-    ElMessage.error('保存失败')
+    ElMessage.error('保存失败：' + (e.response?.data?.error || e.message || '未知错误'))
   }
 }
 
@@ -880,7 +931,7 @@ async function saveConfig() {
       remark: configForm.value.remark
     }
     // Save config to platforms table and location
-    await updatePlatformConfig(configPlatform.value.id, cfg)
+    await updatePlatformConfig(configPlatform.value.id, cfg, configForm.value.location)
     // Update location separately
     await updatePlatformStatus(configPlatform.value.id, configPlatform.value.status, 'Config updated')
 
@@ -1112,6 +1163,72 @@ async function delChipInDetail(row) {
   }
 }
 
+/** SSH 连接设置帮助 */
+const sshHelpVisible = ref(false)
+function showSshHelp() { sshHelpVisible.value = true }
+function downloadSshSetup() {
+  // 走 API 下载，触发浏览器下载 .bat
+  window.open('/api/ssh-mobaxterm-setup.bat', '_blank')
+}
+
+/** 剪贴板回退方案（非 https 环境 navigator.clipboard 不可用） */
+function fallbackCopy(text) {
+  const ta = document.createElement('textarea')
+  ta.value = text
+  ta.style.position = 'fixed'
+  ta.style.opacity = '0'
+  document.body.appendChild(ta)
+  ta.select()
+  try { document.execCommand('copy') } catch(e) {}
+  document.body.removeChild(ta)
+}
+
+/** 复制到剪贴板（clipboard API 优先，非 https 环境回退 execCommand），成功后提示 */
+function copyText(text, msg) {
+  const done = () => ElMessage.success(msg || `已复制: ${text}`)
+  if (navigator.clipboard?.writeText) {
+    navigator.clipboard.writeText(text).then(done).catch(() => {
+      fallbackCopy(text); done()
+    })
+  } else {
+    fallbackCopy(text)
+    done()
+  }
+}
+
+/** 复制菜单分发：moba = MobaXterm 链接（含密码），ssh = 纯命令 */
+function handleCopyCmd(cmd, row) {
+  if (cmd === 'moba') copyMobaLink(row)
+  else copySshCmd(row)
+}
+
+/** 点击 IP：复制完整 SSH 命令 `ssh user@ip`（如 ssh root@10.49.50.11），粘贴到 MobaXterm 快速连接 / 终端直接发起连接 */
+function copyUserIp(cfg) {
+  const c = cfg?.value || cfg || {}
+  const user = c.os_user || 'root'
+  const ip = c.ip
+  if (!ip) return ElMessage.warning('该平台没有 IP')
+  copyText(`ssh ${user}@${ip}`)
+}
+
+/** 复制 MobaXterm 快速链接（含密码）：ssh://user:pass@ip → 粘贴到 MobaXterm 快速连接/会话即可 */
+function copyMobaLink(row) {
+  const user = row.config?.os_user || 'root'
+  const pass = row.config?.os_pass || ''
+  const ip = row.config?.ip
+  if (!ip) return ElMessage.warning('该平台没有 IP')
+  const url = `ssh://${encodeURIComponent(user)}:${encodeURIComponent(pass)}@${ip}`
+  copyText(url, `已复制 MobaXterm 链接: ${url}`)
+}
+
+/** 复制 SSH 连接命令到剪贴板（MobaXterm / 终端直接粘贴） */
+function copySshCmd(row) {
+  const user = row.config?.os_user || 'root'
+  const ip = row.config?.ip
+  if (!ip) return ElMessage.warning('该平台没有 IP')
+  copyText(`ssh ${user}@${ip}`)
+}
+
 onMounted(() => {
   loadData()
   loadTeams()
@@ -1131,4 +1248,11 @@ if (typeof window !== 'undefined') {
 .status-select-in_use :deep(.el-select__wrapper .el-select__selected-item) { color: #fff; }
 .status-select-maintenance :deep(.el-select__wrapper) { background: #909399; }
 .status-select-maintenance :deep(.el-select__wrapper .el-select__selected-item) { color: #fff; }
+.ssh-link {
+  font-family: monospace;
+  color: #409EFF;
+  text-decoration: underline;
+  cursor: pointer;
+}
+.ssh-link:hover { color: #79bbff; }
 </style>

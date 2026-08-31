@@ -82,7 +82,7 @@
           <el-option v-for="p in allProjects" :key="p" :label="p" :value="p" />
         </el-select>
         <div style="margin-top:16px;font-size:12px;color:#909399;">
-          <el-button text type="primary" size="small" @click="showNewProjectDialog=true">+ 创建新项目</el-button>
+          <el-button v-if="currentUser.role === 'admin'" text type="primary" size="small" @click="showNewProjectDialog=true">+ 创建新项目</el-button>
         </div>
       </div>
       <div v-else style="text-align:center;padding:24px 0;">
@@ -96,7 +96,7 @@
   <!-- 未登录 -->
   <div v-else style="display:flex;align-items:center;justify-content:center;height:100vh;">
     <div style="text-align:center;">
-      <span style="font-size:20px;font-weight:600;color:#909399;display:block;margin-bottom:16px;">硬件资源预约平台</span>
+      <span style="font-size:20px;font-weight:600;color:#909399;display:block;margin-bottom:16px;">硬件资源管理平台</span>
       <el-button type="primary" size="large" @click="showLogin = true">请登录</el-button>
       <el-dialog v-model="showLogin" title="登录" width="350px" :close-on-click-modal="false">
         <el-form ref="loginFormRef" :model="loginForm" label-width="70px" @keyup.enter="doLogin">

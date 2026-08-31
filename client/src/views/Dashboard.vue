@@ -2,7 +2,7 @@
   <div class="dashboard">
     <!-- 平台标题 -->
     <div style="text-align:center;margin-bottom:16px;">
-      <span style="font-size:22px;font-weight:700;color:#ffffff;">{{ currentProject }} 硬件资源预约平台</span>
+      <span style="font-size:22px;font-weight:700;color:#ffffff;">{{ currentProject }} 硬件资源管理平台</span>
     </div>
 
       <!-- 统计卡片 -->
@@ -21,7 +21,7 @@
         <div style="display:flex;align-items:center;gap:8px;">
         </div>
         <div style="display:flex;align-items:center;gap:12px;">
-          <el-button type="success" size="small" @click="openReserveDialog" :icon="Plus">
+          <el-button v-if="isAdmin" type="success" size="small" @click="openReserveDialog" :icon="Plus">
             新建预约
           </el-button>
           <el-tag v-if="currentUserRef" type="success" size="small" closable @close="handleLogout">
@@ -54,11 +54,19 @@
             @click="handlePlatformClick(p)"
           >
             <div class="platform-label">{{ p.label }}</div>
-            <div class="platform-ip">{{ p.config?.ip || '--' }}</div>
+            <div class="platform-ip">
+              <span v-if="p.config?.ip" class="ip-ssh-link" :title="'点击复制: ssh ' + (p.config.os_user || 'root') + '@' + p.config.ip" @click.stop="copyUserIp(p.config)">{{ p.config.ip }}</span>
+              <span v-else>--</span>
+            </div>
             <div class="platform-bmc">
               <span class="bmc-label">BMC:</span>
               <a v-if="p.config?.bmc_ip" class="bmc-link" :href="'http://' + p.config.bmc_ip" target="_blank" rel="noopener" @click.stop>{{ p.config.bmc_ip }}</a>
               <span v-else class="bmc-empty">--</span>
+            </div>
+            <div class="platform-jtag">
+              <span class="jtag-label">JTAG:</span>
+              <span v-if="p.config?.jtag_box" class="jtag-on" :title="p.config.jtag_ip ? ('JTAG IP: ' + p.config.jtag_ip) : ''">{{ p.config.jtag_box }}<template v-if="p.config.jtag_ip"> · {{ p.config.jtag_ip }}</template></span>
+              <span v-else class="jtag-empty">未连接</span>
             </div>
             <div class="platform-status">{{ statusLabel(p.status) }}</div>
             <div class="platform-teams" v-if="p.activeTeams && p.activeTeams.length">
@@ -84,7 +92,7 @@
         <el-table-column prop="started_at" label="开始时间" width="150" />
         <el-table-column label="操作" width="100">
           <template #default="{row}">
-            <el-button type="danger" size="small" @click="handleRelease(row)" :disabled="row._noReservation">{{ row._noReservation ? '无预约' : '释放' }}</el-button>
+            <el-button v-if="isAdmin" type="danger" size="small" @click="handleRelease(row)" :disabled="row._noReservation">{{ row._noReservation ? '无预约' : '释放' }}</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -159,6 +167,36 @@ import {
 
 const currentProject = inject('currentProject', ref('BR288Y'))
 
+/** 剪贴板写入：clipboard API 优先，非 https 回退 execCommand */
+function copyText(text, msg) {
+  const done = () => ElMessage.success(msg || `已复制: ${text}`)
+  const fallback = () => {
+    const ta = document.createElement('textarea')
+    ta.value = text
+    ta.style.position = 'fixed'
+    ta.style.opacity = '0'
+    document.body.appendChild(ta)
+    ta.select()
+    try { document.execCommand('copy') } catch (e) {}
+    document.body.removeChild(ta)
+    done()
+  }
+  if (navigator.clipboard?.writeText) {
+    navigator.clipboard.writeText(text).then(done).catch(() => { fallback() })
+  } else {
+    fallback()
+  }
+}
+
+/** 点击 IP：复制完整 SSH 命令 `ssh user@ip`（如 ssh root@10.49.50.11），粘贴到 MobaXterm 快速连接 / 终端直接发起连接 */
+function copyUserIp(cfg) {
+  const c = cfg || {}
+  const user = c.os_user || 'root'
+  const ip = c.ip
+  if (!ip) return ElMessage.warning('该平台没有 IP')
+  copyText(`ssh ${user}@${ip}`)
+}
+
 // 从 localStorage 获取当前登录用户
 function getCurrentUser() {
   try {
@@ -177,6 +215,8 @@ const stats = ref({})
 const showReserveDialog = ref(false)
 const reserving = ref(false)
 const currentUserRef = ref(getCurrentUser())
+// 只读判定: 仅 admin 角色可写, 其他角色(owner 等)对所有页面只读
+const isAdmin = computed(() => { try { const u = JSON.parse(localStorage.getItem('hw_reservation_user') || 'null'); return !!(u && u.role === 'admin') } catch (e) { return false } })
 
 // 统一团队色卡（与 TeamView.vue 预分配保持一致）
 const TEAM_COLOR_MAP = {
@@ -427,11 +467,17 @@ if (typeof window !== 'undefined') {
 
 .platform-label { font-size: 20px; font-weight: 700; }
 .platform-ip { font-size: 14px; color: #409EFF; font-weight: 700; margin-top: 1px; line-height: 1.3; }
+.ip-ssh-link { font-family: monospace; color: #409EFF; text-decoration: underline; cursor: pointer; }
+.ip-ssh-link:hover { color: #79bbff; }
 .platform-bmc { display: flex; align-items: center; gap: 4px; margin-top: 1px; line-height: 1.3; }
 .bmc-label { font-size: 11px; color: #999; flex-shrink: 0; }
 .bmc-link { font-size: 12px; font-family: monospace; font-weight: 600; color: #409EFF; text-decoration: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .bmc-link:hover { text-decoration: underline; }
 .bmc-empty { font-size: 12px; color: #c0c4cc; }
+.platform-jtag { display: flex; align-items: center; gap: 4px; margin-top: 1px; line-height: 1.3; }
+.jtag-label { font-size: 11px; color: #999; flex-shrink: 0; }
+.jtag-on { font-size: 12px; font-family: monospace; font-weight: 600; color: #409EFF; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.jtag-empty { font-size: 12px; color: #c0c4cc; }
 .platform-status { font-size: 11px; color: #999; margin-top: 2px; }
 .platform-teams { margin-top: 4px; display: flex; flex-wrap: wrap; gap: 2px; flex-direction: column; }
 .team-row { display: flex; align-items: center; gap: 4px; font-size: 11px; line-height: 1.4; }
