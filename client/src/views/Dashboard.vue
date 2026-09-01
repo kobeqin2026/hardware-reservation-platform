@@ -122,7 +122,7 @@
         </el-table-column>
       </el-table>
       <div style="margin-top:12px;padding:8px 12px;background:#1d2436;border:1px solid #2a3350;border-radius:4px;font-size:12px;color:#ffc53d;line-height:1.5;">
-        <strong>建议：</strong>平台使用者在预约之后更改平台密码，以防被误用；释放之后将密码改回默认密码。
+        <strong>建议：</strong>平台使用者在预约之后请修改默认密码，以防被误用；释放之后恢复默认。
       </div>
     </template>
     <el-empty v-else description="暂无平台数据" :image-size="60" />

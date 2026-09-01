@@ -334,7 +334,7 @@ onMounted(async () => {
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
 
-/* ═══ kpi-portal 统一深色主题 (2026-08-10) ═══ */
+/* ═══ 统一深色主题 (2026-08-10) ═══ */
 :root {
   --bg: #0f1420; --panel: #171d2b; --panel2: #1d2436; --border: #2a3350;
   --text: #e6e9f2; --muted: #8b93a7; --accent: #4f8cff;
@@ -345,7 +345,7 @@ html {
   background: #0f1420;
 }
 html.dark {
-  /* Element Plus dark vars — 与 kpi-portal 令牌对齐 */
+  /* Element Plus dark vars — 与统一门户令牌对齐 */
   --el-color-primary: #4f8cff;
   --el-color-primary-light-3: #6a9fff;
   --el-color-primary-light-5: #8db6ff;

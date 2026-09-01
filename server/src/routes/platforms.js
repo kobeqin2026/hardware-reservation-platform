@@ -2,8 +2,8 @@ const express = require('express');
 const router = express.Router();
 const { getDB } = require('../models/database');
 
-// 实验室位置白名单 —— 只有三个合法值，禁止其他值写入（2026-08-11 Kobe 要求）
-const LEGAL_LOCATIONS = ['十楼', '三楼', '健康城'];
+// 实验室位置白名单 —— 只有三个合法值，禁止其他值写入（2026-08-11 要求）
+const LEGAL_LOCATIONS = ['十楼', '三楼', '其他'];
 
 function isLegalLocation(v) {
   if (v === undefined || v === null) return true;   // 未传=不修改

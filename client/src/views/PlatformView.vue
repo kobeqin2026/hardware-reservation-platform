@@ -46,7 +46,7 @@
             <el-select v-if="isAdmin && row._editing" v-model="row._location" size="small" style="width:105px;">
               <el-option label="十楼" value="十楼" />
               <el-option label="三楼" value="三楼" />
-              <el-option label="健康城" value="健康城" />
+              <el-option label="其他" value="其他" />
             </el-select>
             <el-tag v-else size="small" style="border:none;">{{ row.location || '-' }}</el-tag>
           </template>
@@ -317,7 +317,7 @@
         <el-divider content-position="left"><b>方式三：其他 SSH 客户端 / 终端</b></el-divider>
         <p style="margin:0;">点 IP 旁「复制 → <b>SSH 命令</b>」复制 <code>ssh user@10.0.0.11</code>，粘贴到任意 SSH 客户端 / 其他终端；或直接点 IP 复制 <code>user@10.0.0.11</code>。</p>
 
-        <el-alert type="info" :closable="false" style="margin-top:10px;" title="SSH 默认账户：用户 root，密码见平台行内「密码」列。" />
+        <el-alert type="info" :closable="false" style="margin-top:10px;" title="SSH 账户/密码见平台行内「用户/密码」列。" />
       </div>
       <template #footer>
         <el-button type="primary" @click="sshHelpVisible = false">知道了</el-button>
@@ -334,7 +334,7 @@
           <el-select v-model="configForm.location" placeholder="选择实验室位置" style="width:100%;">
             <el-option label="十楼" value="十楼" />
             <el-option label="三楼" value="三楼" />
-            <el-option label="健康城" value="健康城" />
+            <el-option label="其他" value="其他" />
             <el-option label="未设置" value="" />
           </el-select>
         </el-form-item>

@@ -106,7 +106,7 @@
 
 **平台列表页面扩展**
 - **11 列合并显示**：平台 / 类型 / ASIC ID / 实验室位置 / 主板 / OS 信息（IP+MAC+用户名密码） / BMC 信息（IP+MAC+用户名密码） / JTAG 信息（编号+IP+MAC） / 预分配团队 / 当前活跃 / 操作
-- **类型/实验室位置表格内直接编辑**：admin 可下拉选择（socket/solder_down；三楼/十楼/健康城），非 admin 只读
+- **类型/实验室位置表格内直接编辑**：admin 可下拉选择（socket/solder_down；三楼/十楼/其他），非 admin 只读
 - **JTAG 条件显示**：仅 `jtag_enabled=true` 时显示 JTAG 行
 - **详情弹窗芯片 tab 精简**：4 列（平台 / ASIC ID / 芯片型号 / 编辑/删除操作）
 - **预分配团队只读**：移除旧的"编辑预分配团队"对话框，数据由团队分配页面统一管理
@@ -125,7 +125,7 @@
 
 **杂项改进**
 - 项目切换隔离：团队分配/平台列表/芯片信息页面隐藏顶栏项目选择器
-- 添加 MBIST 团队和登录用户（mbist/mbist123）
+- 添加 MBIST 团队和登录用户（mbist）
 - 日期编辑从周编号（`weekStartDate()`）改为 MM-DD 字符串解析
 - App.vue 顶栏项目选择区加 `v-if` 条件显隐
 
@@ -189,7 +189,7 @@ cd client && npm run build
 
 ## 默认用户
 
-统一账号库（`users` 表）。**账号与默认密码不写入版本库**：首次部署在 `~/skills/.env` 配置 `INITIAL_USERS`（JSON 数组）或 `ADMIN_PASSWORD`（单管理员）自动建号，或直接操作数据库 `users` 表（先备份）。`users` 表与 gpu-tracker(8088)/kpi-portal(8090) 共用登录。
+统一账号库（`users` 表）。**账号与默认密码不写入版本库**：首次部署在 `~/skills/.env` 配置 `INITIAL_USERS`（JSON 数组）或 `ADMIN_PASSWORD`（单管理员）自动建号，或直接操作数据库 `users` 表（先备份）。`users` 表与其它内部系统共用统一账号库。
 ## 团队分配操作流程
 
 1. admin 登录 → 导航到「团队分配」页面
