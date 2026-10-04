@@ -21,4 +21,17 @@ const router = createRouter({
   routes
 })
 
+// 门户 8090 SSO 身份参数清理: Vue Router 初始导航在组件 setup 后仍会重写 URL, 故用 afterEach
+// (在导航完全落定后执行) 剔除 ?user/role/display, 避免地址栏残留/误分享。身份已由 App.vue setup 同步读入 localStorage。
+router.afterEach((to) => {
+  try {
+    const params = ['user', 'role', 'display']
+    if (!params.some((p) => to.query[p] !== undefined)) return
+    const u = new URL(location.href)
+    let changed = false
+    params.forEach((p) => { if (u.searchParams.has(p)) { u.searchParams.delete(p); changed = true } })
+    if (changed) history.replaceState(null, '', u.pathname + (u.search ? u.search : '') + (u.hash || ''))
+  } catch (e) {}
+})
+
 export default router

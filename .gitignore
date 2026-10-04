@@ -11,3 +11,4 @@ dist/
 *.db-wal
 *.db-shm
 *.db.bak*
+server/data/day_allocations_export.json

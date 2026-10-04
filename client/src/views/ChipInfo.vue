@@ -63,7 +63,7 @@
       <el-form :model="chipForm" label-width="110px">
         <el-form-item label="所属平台">
           <el-select v-model="chipForm.platformId" filterable clearable style="width:100%" placeholder="选择平台（可选）">
-            <el-option label="未分配" value="" />
+            <el-option label="未分配" value="__unassigned__" />
             <el-option v-for="p in projectPlatforms" :key="p.id" :label="p.label" :value="p.id" />
           </el-select>
           <div style="font-size:11px;color:#999;margin-top:2px;">留空表示暂不分配平台，可后期编辑时选择</div>
@@ -113,7 +113,7 @@
         </el-form-item>
         <el-form-item label="所属平台">
           <el-select v-model="assignForm.platformId" filterable style="width:100%" placeholder="选择平台">
-            <el-option label="未分配" value="" />
+            <el-option label="未分配" value="__unassigned__" />
             <el-option v-for="p in projectPlatforms" :key="p.id" :label="p.label" :value="p.id" />
           </el-select>
         </el-form-item>
@@ -215,7 +215,7 @@ function handleEdit(row) {
   isEdit.value = true
   editId.value = row.id
   chipForm.value = {
-    platformId: row.platform_id || '',
+    platformId: row.platform_id || '__unassigned__',
     asicId: row.asic_id || '',
     uuid: row.uuid || '',
     mbistResult: row.mbist_result || '',
@@ -229,13 +229,17 @@ function handleEdit(row) {
 function handleAdd() {
   isEdit.value = false
   editId.value = null
-  chipForm.value = { platformId: '', asicId: '', uuid: '', mbistResult: '', ftStatus: '', sltStatus: '', remark: '' }
+  chipForm.value = { platformId: '__unassigned__', asicId: '', uuid: '', mbistResult: '', ftStatus: '', sltStatus: '', remark: '' }
   dialogVisible.value = true
 }
 
 async function handleSave() {
   saving.value = true
   try {
+    // 修复(el-select filterable+clearable 清空后 modelValue=undefined): 把 platformId 归一化为 '',
+    // 确保"去掉所属平台"能以空值传给后端清空 platform_id——否则 axios 丢弃 undefined 字段, 后端 PUT 保留原平台 = 保存不住
+    // 2026-10-01: "未分配"用哨兵 __unassigned__ 保持 el-select 可选/显示正确, 提交时归一化为 '' 清空 platform_id
+    chipForm.value.platformId = chipForm.value.platformId === '__unassigned__' ? '' : (chipForm.value.platformId ?? '')
     if (isEdit.value) {
       const res = await updateChip(editId.value, chipForm.value)
       if (res.data?.replacedAsic) {
@@ -275,22 +279,21 @@ async function handleDelete(row) {
 function handleAssignPlatform(row) {
   assignChipId.value = row.id
   assignChipLabel.value = row.asic_id || row.uuid || '#'+row.id
-  assignForm.value = { platformId: '' }
+  assignForm.value = { platformId: '__unassigned__' }
   assignVisible.value = true
 }
 
 async function doAssign() {
-  if (!assignForm.value.platformId) {
-    ElMessage.warning('请选择平台')
-    return
-  }
+  // 2026-10-01: 允许"未分配"(留空) —— 归一化传给后端清空 platform_id。
+  // 此前 if(!platformId){'请选择平台'} 会拒绝 value='' 的"未分配"选项 → 无法把芯片设为未分配。
+  const platId = assignForm.value.platformId === '__unassigned__' ? '' : (assignForm.value.platformId ?? '')
   assigning.value = true
   try {
-    const res = await updateChip(assignChipId.value, { platformId: assignForm.value.platformId })
+    const res = await updateChip(assignChipId.value, { platformId: platId })
     if (res.data?.replacedAsic) {
       ElMessage.warning(`已分配，原平台芯片 ${res.data.replacedAsic} 已移出到未分配`)
     } else {
-      ElMessage.success('平台已分配')
+      ElMessage.success(platId ? '平台已分配' : '芯片已设为未分配')
     }
     assignVisible.value = false
     await loadChips()

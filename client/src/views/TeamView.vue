@@ -38,6 +38,21 @@
       </div>
     </el-card>
 
+    <!-- === 分配参考图 === -->
+    <el-card shadow="never" style="margin-bottom:12px">
+      <template #header>
+        <div class="chd">
+          <span class="ctitle">分配参考图</span>
+          <div class="cright">
+            <el-button size="small" @click="loadAllocData">刷新</el-button>
+          </div>
+        </div>
+      </template>
+      <div class="ref-img-wrap">
+        <img src="/hwallocate.png" alt="分配参考图" class="ref-img" />
+      </div>
+    </el-card>
+
     <!-- 编辑预分配时间弹窗 -->
     <el-dialog v-model="showDateEdit" title="编辑Bringup时间（14天）" width="380px">
       <div style="font-size:12px;color:#999;margin-bottom:12px;">选择起始日期，自动往后14天</div>
@@ -69,7 +84,7 @@ const TEAM_COLOR_MAP = {
   board: '#DC2626', diag: '#2563EB', ethernet: '#16A34A', firmware: '#D97706',
   kmd: '#CA8A04', mbist: '#DB2777', pcie: '#0E7490', ppo: '#65A30D',
   slt: '#A21CAF', swci: '#0D9488', swmodel: '#BE185D', umd: '#15803D',
-  video: '#B45309',
+  video: '#B45309', dft: '#7C3AED', npival: '#4F46E5', computelib: '#0EA5E9',
 }
 
 // ========= 预分配 =========
@@ -192,4 +207,6 @@ onMounted(() => { loadAllocData() })
 .dn { font-size:11px; line-height:1.3; color:#fff; }
 .dw { color:rgba(255,255,255,.6); font-size:9px; }
 .tag { font-size:16px; font-weight:400; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:100%; position:absolute; top:0; left:0; right:0; bottom:0; display:flex; align-items:center; justify-content:center; z-index:1; }
+.ref-img-wrap { overflow-x:auto; }
+.ref-img { max-width:100%; height:auto; display:block; border-radius:4px; border:1px solid rgba(255,255,255,.1); }
 </style>

@@ -156,6 +156,19 @@ const stageNames = { 'BU': 'Bring Up', 'FE': 'Feature Enable', 'FST': 'Feature S
 // ---- 登录 ----
 const savedUser = localStorage.getItem('hw_reservation_user')
 const currentUser = ref(savedUser ? JSON.parse(savedUser) : null)
+; // —— 门户 8090 免登录跳转 (SSO): 硬件平台无服务端会话, 登录=前端 localStorage 门槛。
+// 同步读取 ?user/role/display 存入 localStorage + currentUser (setup 在 mount 时执行, 保证首帧即已登录)。
+(function(){
+  try {
+    const sp = new URLSearchParams(location.search)
+    const uname = sp.get('user') || ''
+    if (uname) {
+      const usr = { name: uname, role: sp.get('role') || 'owner', display_name: sp.get('display') || uname }
+      localStorage.setItem('hw_reservation_user', JSON.stringify(usr))
+      currentUser.value = usr
+    }
+  } catch (e) {}
+})()
 const showLogin = ref(false)
 const logining = ref(false)
 const loginForm = ref({ name: '', password: '' })

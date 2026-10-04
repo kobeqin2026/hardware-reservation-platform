@@ -71,15 +71,20 @@ export function allocatePlatformTeams(id, teamIds) {
 
 export function reservePlatform(teamId, platformId, purpose, owner) {
   const user = JSON.parse(localStorage.getItem('hw_reservation_user')||'{}')
-  return api.post('/reservations/reserve', { teamId, platformId, purpose, owner, isAdmin: user.role === 'admin' })
+  return api.post('/reservations/reserve', { teamId, platformId, purpose, owner, isAdmin: user.role === 'admin', isOwner: user.role === 'owner' })
 }
 
 export function releaseReservation(reservationId) {
-  return api.post('/reservations/release', { reservationId })
+  const user = JSON.parse(localStorage.getItem('hw_reservation_user')||'{}')
+  return api.post('/reservations/release', { reservationId, isAdmin: user.role === 'admin', teamId: user.name })
 }
 
 export function getLogs(params) {
   return api.get('/reservations/logs', { params })
+}
+
+export function getReservationHistory(project) {
+  return api.get('/reservations/history', { params: { project } })
 }
 
 export function login(name, password) {

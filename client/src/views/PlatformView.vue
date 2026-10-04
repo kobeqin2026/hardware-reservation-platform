@@ -175,7 +175,7 @@
                 <el-option label="维护中" value="maintenance" />
               </el-select>
               <el-tag v-if="!isAdmin" :type="row.status === 'idle' ? 'success' : row.status === 'in_use' ? 'warning' : 'danger'" size="small">{{ {idle:'空闲',in_use:'使用中',maintenance:'维护中'}[row.status] || row.status }}</el-tag>
-              <el-button v-if="isAdmin" size="small" type="success" @click="showQuickReserve(row)">预约</el-button>
+              <el-button v-if="canManageReservations" size="small" type="success" @click="showQuickReserve(row)" :disabled="!canReserveThisPlatform(row)">预约</el-button>
               <el-button size="small" type="primary" @click="showDetail(row)">详情</el-button>
             </div>
           </template>
@@ -232,7 +232,7 @@
             <!-- 操作按钮 -->
             <div style="margin-top:12px;display:flex;gap:8px;">
               <el-button v-if="isAdmin" size="small" type="primary" @click="showConfigEdit(detailPlatform)">编辑配置</el-button>
-              <el-button v-if="isAdmin" size="small" type="success" @click="showQuickReserve(detailPlatform)" :disabled="detailPlatform.status==='maintenance'">
+              <el-button v-if="canManageReservations" size="small" type="success" @click="showQuickReserve(detailPlatform)" :disabled="detailPlatform.status==='maintenance' || !canReserveThisPlatform(detailPlatform)">
                 快速预约
               </el-button>
             </div>
@@ -367,7 +367,7 @@
           <el-input :model-value="reservePlatformRef?.label" disabled />
         </el-form-item>
         <el-form-item label="团队">
-          <el-select v-model="reserveForm.teamId" filterable style="width:100%" placeholder="选择团队">
+          <el-select v-model="reserveForm.teamId" filterable style="width:100%" placeholder="选择团队" :disabled="isOwner">
             <el-option v-for="t in teams" :key="t.id" :label="t.display_name" :value="t.id" />
           </el-select>
         </el-form-item>
@@ -554,6 +554,50 @@ const isAdmin = computed(() => {
   if (!u) return false
   try { return JSON.parse(u).role === 'admin' } catch(e) { return false }
 })
+/** owner(domain owner): 可预约/释放本团队已预分配平台(后端按 day_allocations 鉴权) */
+const isOwner = computed(() => {
+  const u = localStorage.getItem('hw_reservation_user')
+  if (!u) return false
+  try { return JSON.parse(u).role === 'owner' } catch(e) { return false }
+})
+const canManageReservations = computed(() => isAdmin.value || isOwner.value)
+
+// ---- owner 可预约平台判定 (按 day_allocations 预分配) ----
+const currentUserName = computed(() => { try { const u = JSON.parse(localStorage.getItem('hw_reservation_user') || '{}'); return u.name || '' } catch(e) { return '' } })
+const dayAllocCache = ref([])
+const teamReservablePlatforms = computed(() => {
+  const map = {}
+  for (const row of (dayAllocCache.value || [])) {
+    if (!row || !row.team_id || !row.platform_id) continue
+    if (!map[row.team_id]) map[row.team_id] = new Set()
+    map[row.team_id].add(row.platform_id)
+  }
+  return map
+})
+function ownerCanReservePlatform(platformId) {
+  if (!isOwner.value) return true
+  const allowed = (teamReservablePlatforms.value || {})[currentUserName.value]
+  return !!(allowed && allowed.has(platformId))
+}
+// 平台是否有团队信息(当前阶段至少预分配给一个团队) —— 无团队信息不可预约(2026-09-28)
+// (2026-10-02 修复: 共享平台判定) 除预分配(day_allocations/allocatedTeams)外,
+// 平台有活跃预约(activeTeams, 正被其他团队共享使用) 同样视为"有团队信息"可预约,
+// 否则 in_use 但无 day_allocations 的共享平台被误判"无团队信息"(如 BU15 被 jtag/board 共享).
+function platformHasTeamInfo(p) {
+  if (p.allocatedTeams && p.allocatedTeams.length) return true
+  if (p.activeTeams && p.activeTeams.length) return true
+  return (dayAllocCache.value || []).some(r => r.platform_id === p.id)
+}
+// 平台当前是否可预约:
+//  - owner(domain owner) 暂时不受预分配限制(2026-09-28): 恒可约
+//  - 其余角色: 空闲(idle)平台随时可约 + 有团队信息(已预分配)才能约 (2026-10-01: 空闲=真正空闲, 可预约)
+function canReserveThisPlatform(p) {
+  if (isOwner.value) return true
+  return p.status === 'idle' || platformHasTeamInfo(p)
+}
+async function loadDayAlloc() {
+  try { dayAllocCache.value = await fetch('/api/teams/day-allocations').then(r => r.json()) } catch (e) { dayAllocCache.value = [] }
+}
 
 // ---- 用户管理 ----
 const allUsers = ref([])
@@ -721,6 +765,7 @@ function statusLabel(st) {
 
 async function loadData() {
   try {
+    loadDayAlloc()
     const res = await getPlatforms()
     platforms.value = (res.data.platforms || []).map(p => ({
       ...p,
@@ -804,10 +849,12 @@ async function savePlatformEdit(row) {
     })
     // 芯片绑定：如果 ASIC ID 变了，解除旧芯片绑定并绑定新芯片
     const oldAsicId = (row._boundChips || []).map(function(c) { return c.asic_id; })[0] || ''
-    const newAsicId = row._asic_id
+    const newAsicId = row._asic_id || ''
     console.log('[savePlatformEdit]', row.id, 'oldAsicId:', oldAsicId, 'newAsicId:', newAsicId)
-    if (newAsicId && newAsicId !== oldAsicId) {
-      // 把之前绑定的芯片解除（如果有）
+    // 2026-10-01: 只要 ASIC ID 变化即同步绑定位(含"清空 ASIC = 解绑")——原 `if(newAsicId && ...)` 对空值不触发,
+    // 导致 BU13 等平台芯片绑定无法清空分配到其他平台。改为无空值分支比较。
+    if (newAsicId !== oldAsicId) {
+      // 把之前绑定的芯片解除（如果有）——清空 ASIC 时 oldAsicId 非空 → 解绑
       if (oldAsicId) {
         await fetch('/api/chips/by-asic/' + encodeURIComponent(oldAsicId) + '/bind', {
           method: 'PUT',
@@ -815,20 +862,22 @@ async function savePlatformEdit(row) {
           body: JSON.stringify({ platformId: null })
         })
       }
-      // 绑定新芯片到当前平台
-      await fetch('/api/chips/by-asic/' + encodeURIComponent(newAsicId) + '/bind', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ platformId: row.id })
-      })
+      // 绑定新芯片到当前平台（若选择了新 ASIC）
+      if (newAsicId) {
+        await fetch('/api/chips/by-asic/' + encodeURIComponent(newAsicId) + '/bind', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ platformId: row.id })
+        })
+      }
     }
     row.config = cfg
     row.type = row._type
     row.location = row._location
     // 更新芯片绑定显示状态
-    if (newAsicId && newAsicId !== oldAsicId) {
+    if (newAsicId !== oldAsicId) {
       row._asic_id = newAsicId
-      row._boundChips = [{ asic_id: newAsicId, platform_id: row.id }]
+      row._boundChips = newAsicId ? [{ asic_id: newAsicId, platform_id: row.id }] : []
     }
     row._editing = false
     ElMessage.success('配置已保存')
@@ -993,6 +1042,13 @@ function showQuickReserve(row) {
     userName = u.display_name || u.name || ''
   } catch(e) {}
   reserveForm.value = { teamId: '', owner: userName, purpose: '' }
+  // owner: 自动锁定本团队(用户名=团队ID)
+  if (isOwner.value) {
+    try {
+      const u = JSON.parse(localStorage.getItem('hw_reservation_user') || '{}')
+      if (u && u.name) reserveForm.value.teamId = u.name
+    } catch(e) {}
+  }
   reserveVisible.value = true
 }
 

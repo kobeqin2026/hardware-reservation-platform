@@ -19,9 +19,12 @@
     <el-card shadow="never" style="margin-bottom: 16px;">
       <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;justify-content:space-between;">
         <div style="display:flex;align-items:center;gap:8px;">
+          <el-switch v-model="autoRefresh" size="small" />
+          <span style="font-size:12px;color:#999;">自动刷新</span>
+          <span v-if="autoRefresh" style="font-size:12px;color:#4f8cff;font-variant-numeric:tabular-nums;">下次刷新 {{ countdownText }}</span>
         </div>
         <div style="display:flex;align-items:center;gap:12px;">
-          <el-button v-if="isAdmin" type="success" size="small" @click="openReserveDialog" :icon="Plus">
+          <el-button v-if="canManageReservations" type="success" size="small" @click="openReserveDialog" :icon="Plus">
             新建预约
           </el-button>
           <el-tag v-if="currentUserRef" type="success" size="small" closable @close="handleLogout">
@@ -60,7 +63,7 @@
             </div>
             <div class="platform-bmc">
               <span class="bmc-label">BMC:</span>
-              <a v-if="p.config?.bmc_ip" class="bmc-link" :href="'http://' + p.config.bmc_ip" target="_blank" rel="noopener" @click.stop>{{ p.config.bmc_ip }}</a>
+              <a v-if="p.config?.bmc_ip" class="bmc-link" :href="'https://' + p.config.bmc_ip" target="_blank" rel="noopener" @click.stop>{{ p.config.bmc_ip }}</a>
               <span v-else class="bmc-empty">--</span>
             </div>
             <div class="platform-jtag">
@@ -92,11 +95,49 @@
         <el-table-column prop="started_at" label="开始时间" width="150" />
         <el-table-column label="操作" width="100">
           <template #default="{row}">
-            <el-button v-if="isAdmin" type="danger" size="small" @click="handleRelease(row)" :disabled="row._noReservation">{{ row._noReservation ? '无预约' : '释放' }}</el-button>
+            <el-button v-if="canReleaseReservation(row)" type="danger" size="small" @click="handleRelease(row)" :disabled="row._noReservation">{{ row._noReservation ? '无预约' : '释放' }}</el-button>
           </template>
         </el-table-column>
       </el-table>
       <el-empty v-else description="暂无活跃预约" :image-size="80" />
+    </el-card>
+
+    <!-- 预约平台历史记录 -->
+    <el-card shadow="never" style="margin-top:16px;">
+      <template #header>
+        <span style="font-weight:600;">预约平台历史记录</span>
+      </template>
+      <template v-if="reservationHistory.length">
+      <el-table :data="pagedHistory" stripe size="small">
+        <el-table-column prop="platform_label" label="平台" width="72" />
+        <el-table-column prop="team_name" label="团队" width="110" />
+        <el-table-column prop="owner" label="负责人" width="80" />
+        <el-table-column prop="purpose" label="用途" min-width="160" show-overflow-tooltip />
+        <el-table-column prop="started_at" label="新建预约时间" width="160" />
+        <el-table-column label="释放预约时间" width="160">
+          <template #default="{row}">
+            <span v-if="row.ended_at">{{ row.ended_at }}</span>
+            <span v-else-if="row.status==='active'" style="color:#E6A23C;">使用中</span>
+            <span v-else style="color:#999;">—</span>
+          </template>
+        </el-table-column>
+        <el-table-column label="状态" width="90">
+          <template #default="{row}">
+            <el-tag :type="row.status==='active' ? 'warning' : 'success'" size="small">{{ row.status==='active' ? '使用中' : '已释放' }}</el-tag>
+          </template>
+        </el-table-column>
+      </el-table>
+      <div v-if="reservationHistory.length > HISTORY_PAGE_SIZE" style="display:flex;justify-content:flex-end;margin-top:12px;">
+        <el-pagination
+          v-model:current-page="historyPage"
+          :total="reservationHistory.length"
+          :page-size="HISTORY_PAGE_SIZE"
+          layout="total, prev, pager, next"
+          small
+        />
+      </div>
+      </template>
+      <el-empty v-else description="暂无预约历史" :image-size="80" />
     </el-card>
 
     <!-- 各团队平台状态 -->
@@ -132,13 +173,13 @@
     <el-dialog v-model="showReserveDialog" title="新建预约" width="500px">
       <el-form :model="reserveForm" label-width="80px">
         <el-form-item label="团队">
-          <el-select v-model="reserveForm.teamId" style="width:100%" placeholder="选择团队">
+          <el-select v-model="reserveForm.teamId" style="width:100%" placeholder="选择团队" :disabled="isOwner">
             <el-option v-for="t in allTeams" :key="t.id" :label="t.display_name" :value="t.id" />
           </el-select>
         </el-form-item>
         <el-form-item label="平台">
           <el-select v-model="reserveForm.platformId" filterable style="width:100%" placeholder="选择平台">
-            <el-option v-for="p in projectPlatforms" :key="p.id" :label="p.label" :value="p.id" :disabled="p.status==='maintenance'" />
+            <el-option v-for="p in reservePlatforms" :key="p.id" :label="p.label" :value="p.id" :disabled="p.status==='maintenance'" />
           </el-select>
         </el-form-item>
         <el-form-item label="负责人">
@@ -157,12 +198,12 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted, inject } from 'vue'
+import { ref, reactive, computed, onMounted, inject, onBeforeUnmount } from 'vue'
 import { Plus } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   getOverview, getStats, getStages, switchStage,
-  getPlatforms, reservePlatform, releaseReservation, getLogs
+  getPlatforms, reservePlatform, releaseReservation, getLogs, getReservationHistory
 } from '@/api'
 
 const currentProject = inject('currentProject', ref(''))
@@ -207,6 +248,14 @@ function getCurrentUser() {
 
 const platforms = ref([])
 const activeReservations = ref([])
+const reservationHistory = ref([])
+// 历史记录分页: 每页固定 10 条, 其余翻页显示
+const HISTORY_PAGE_SIZE = 10
+const historyPage = ref(1)
+const pagedHistory = computed(() => {
+  const start = (historyPage.value - 1) * HISTORY_PAGE_SIZE
+  return reservationHistory.value.slice(start, start + HISTORY_PAGE_SIZE)
+})
 const stages = ref([])
 const currentStage = ref('BU')
 const allTeams = ref([])
@@ -215,8 +264,21 @@ const stats = ref({})
 const showReserveDialog = ref(false)
 const reserving = ref(false)
 const currentUserRef = ref(getCurrentUser())
-// 只读判定: 仅 admin 角色可写, 其他角色(owner 等)对所有页面只读
-const isAdmin = computed(() => { try { const u = JSON.parse(localStorage.getItem('hw_reservation_user') || 'null'); return !!(u && u.role === 'admin') } catch (e) { return false } })
+// 角色判定: admin 全量, owner(domain owner) 可预约/释放本团队已预分配的平台(后端按 day_allocations 鉴权)
+const currentRole = computed(() => { try { const u = JSON.parse(localStorage.getItem('hw_reservation_user') || 'null'); return u ? u.role : '' } catch (e) { return '' } })
+const isAdmin = computed(() => currentRole.value === 'admin')
+const isOwner = computed(() => currentRole.value === 'owner')
+// 可管理预约(新建/释放): admin 或 owner; 后端对 owner 只放行本团队已预分配平台
+const canManageReservations = computed(() => isAdmin.value || isOwner.value)
+// 当前登录用户名 (owner 账号名=团队id, 用于 owner 只显示/可释放自己团队预约; 实时读 localStorage 防 SSO 后不更新)
+const currentUserName = computed(() => {
+  try { const u = JSON.parse(localStorage.getItem('hw_reservation_user') || 'null'); return u ? (u.name || '') : '' } catch (e) { return '' }
+})
+// owner 是否可释放某条预约: admin 恒可; owner 只能释放本团队(team_id===自己账号名)的预约
+const canReleaseReservation = computed(() => (row) => {
+  if (isAdmin.value) return true
+  return isOwner.value && row.team_id === currentUserName.value
+})
 
 // 统一团队色卡（与 TeamView.vue 预分配保持一致）
 const TEAM_COLOR_MAP = {
@@ -224,7 +286,7 @@ const TEAM_COLOR_MAP = {
   board: '#DC2626', diag: '#2563EB', ethernet: '#16A34A', firmware: '#D97706',
   kmd: '#CA8A04', mbist: '#DB2777', pcie: '#0E7490', ppo: '#65A30D',
   slt: '#A21CAF', swci: '#0D9488', swmodel: '#BE185D', umd: '#15803D',
-  video: '#B45309',
+  video: '#B45309', dft: '#7C3AED', npival: '#4F46E5', computelib: '#0EA5E9',
 }
 
 function teamColor(teamId) {
@@ -306,13 +368,14 @@ async function loadAll() {
     // 先加载 day_allocations 缓存
     try { dayAllocCache.value = await fetch('/api/teams/day-allocations').then(r=>r.json()) } catch(e) {}
 
-    const [overviewRes, statsRes, stageRes, platformRes] = await Promise.all([
-      getOverview(), getStats({ project: currentProject.value }), getStages(), getPlatforms()
+    const [overviewRes, statsRes, stageRes, platformRes, historyRes] = await Promise.all([
+      getOverview(), getStats({ project: currentProject.value }), getStages(), getPlatforms(), getReservationHistory(currentProject.value)
     ])
 
     const ov = overviewRes.data
     activeReservations.value = ov.activeReservations || []
-    // 补充 status=in_use 但没有 reservation 的平台
+    reservationHistory.value = historyRes.data?.items || []
+    historyPage.value = 1
     const inUsePlats = platformRes.data.platforms.filter(p => p.status === 'in_use' && !ov.activeReservations?.some(r => r.platform_id === p.id))
     for (const p of inUsePlats) {
       const activeTeam = p.activeTeams?.[0]
@@ -358,6 +421,35 @@ const projectPlatforms = computed(() => {
     })
 })
 
+// ---- 每团队可预约的平台(去重自 day_allocations) — owner 用它过滤平台下拉, 避免点到未预分配平台 403 ----
+const teamReservablePlatforms = computed(() => {
+  const map = {}
+  for (const row of (dayAllocCache.value || [])) {
+    if (!row || !row.team_id || !row.platform_id) continue
+    if (!map[row.team_id]) map[row.team_id] = new Set()
+    map[row.team_id].add(row.platform_id)
+  }
+  return map
+})
+
+// 平台是否有团队信息 —— 无团队信息不可预约(2026-09-28)
+// (2026-10-02 修复: 共享平台判定) 除预分配(day_allocations/allocatedTeams)外,
+// 平台有活跃预约(activeTeams, 正被其他团队共享使用) 同样视为"有团队信息"可预约,
+// 否则 in_use 但无 day_allocations 的共享平台被误判"无团队信息"而筛掉(如 BU15 被 jtag/board 共享).
+function platformHasTeamInfo(p) {
+  if (p.allocatedTeams && p.allocatedTeams.length) return true
+  if (p.activeTeams && p.activeTeams.length) return true
+  return (dayAllocCache.value || []).some(r => r.platform_id === p.id)
+}
+
+// 新建预约平台下拉:
+//  - owner(domain owner) 暂时不受预分配限制(2026-09-28): 显示全部平台(维护中由 el-option 置灰)
+//  - 其余角色: 显示有团队信息(已预分配)的平台 + 空闲平台(2026-10-01: 空闲=真正空闲, 随时可预约)
+const reservePlatforms = computed(() => {
+  if (isOwner.value) return projectPlatforms.value
+  return projectPlatforms.value.filter(p => p.status === 'idle' || platformHasTeamInfo(p))
+})
+
 /** 项目切换 */
 function handleProjectSwitch(project) {
   currentProject.value = project
@@ -385,11 +477,11 @@ async function openReserveDialog() {
   reserveForm.platformId = ''
   reserveForm.purpose = ''
   reserveForm.owner = ''
-  // 根据登录用户名自动匹配团队（用户名=团队ID），匹配不到则为空手动选择
+  // 根据登录用户名自动匹配团队（用户名=团队ID），匹配不到则为空手动选择；owner 锁定本团队
   const cu = currentUserRef.value
   if (cu && cu.name) {
     const team = allTeams.value.find(t => t.id === cu.name)
-    reserveForm.teamId = team ? team.id : ''
+    reserveForm.teamId = team ? team.id : (isOwner.value ? cu.name : '')
   }
   showReserveDialog.value = true
 }
@@ -431,6 +523,28 @@ async function handleRelease(row) {
 }
 
 onMounted(loadAll)
+
+// ---- 自动刷新（间隔5分钟）+ 刷新倒计时 ----
+const AUTO_REFRESH_INTERVAL = 300 // 秒
+const autoRefresh = ref(true)
+const countdown = ref(AUTO_REFRESH_INTERVAL)
+let autoTimer = null
+function tickAutoRefresh() {
+  if (!autoRefresh.value) return
+  countdown.value = countdown.value - 1
+  if (countdown.value <= 0) {
+    loadAll()
+    countdown.value = AUTO_REFRESH_INTERVAL
+  }
+}
+onMounted(() => { autoTimer = setInterval(tickAutoRefresh, 1000) })
+onBeforeUnmount(() => { if (autoTimer) { clearInterval(autoTimer); autoTimer = null } })
+const countdownText = computed(() => {
+  const s = Math.max(0, countdown.value)
+  const m = Math.floor(s / 60)
+  const ss = s % 60
+  return String(m).padStart(2, '0') + ':' + String(ss).padStart(2, '0')
+})
 
 // 监听项目切换事件
 if (typeof window !== 'undefined') {
